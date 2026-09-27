@@ -49,9 +49,9 @@ import sys
 
 sys.path.insert(0, str(pathlib.Path(__file__).resolve().parents[1]))
 
-from app.corpus.manifest import attach_chunks, build_manifest  # noqa: E402
-from app.evaluation.probe import Probe, ProbeSet, dataset_id_for  # noqa: E402
-from app.retrieval.corpus import load_corpus  # noqa: E402
+from enterprise_rag.indexing.manifest import attach_chunks, build_manifest  # noqa: E402
+from enterprise_rag.evaluation.probe import Probe, ProbeSet, dataset_id_for  # noqa: E402
+from enterprise_rag.indexing.corpus import load_corpus  # noqa: E402
 
 # Vocabulary chosen so generated documents read like runbooks rather than like
 # word salad: each domain term is a real operational concept, and each service
@@ -482,7 +482,7 @@ def build_probes(truth: dict[str, dict], count: int) -> list[Probe]:
 
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
-    parser.add_argument("--out", default="evaluation/generated", help="output directory")
+    parser.add_argument("--out", default="evals/datasets", help="output directory")
     parser.add_argument("--seed", type=int, default=20260101, help="RNG seed; fixes output byte for byte")
     parser.add_argument("--services", type=int, default=len(SERVICES), help="number of services to generate")
     parser.add_argument("--max-chars", type=int, default=1200, help="chunk size for the manifest")

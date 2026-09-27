@@ -37,13 +37,13 @@ import sys
 
 sys.path.insert(0, str(pathlib.Path(__file__).resolve().parents[1]))
 
-from app.config import Settings  # noqa: E402
-from app.corpus.manifest import attach_chunks, build_manifest  # noqa: E402
-from app.evaluation.probe import ProbeSet  # noqa: E402
-from app.evaluation.runner import RetrievalExecutor, config_fingerprint, run_probe_set  # noqa: E402
-from app.retrieval.corpus import load_corpus  # noqa: E402
-from app.retrieval.pipeline import HybridRetriever, build_retrievers  # noqa: E402
-from app.retrieval.status import StatusPolicy  # noqa: E402
+from enterprise_rag.config.settings import Settings  # noqa: E402
+from enterprise_rag.indexing.manifest import attach_chunks, build_manifest  # noqa: E402
+from enterprise_rag.evaluation.probe import ProbeSet  # noqa: E402
+from enterprise_rag.evaluation.runner import RetrievalExecutor, config_fingerprint, run_probe_set  # noqa: E402
+from enterprise_rag.indexing.corpus import load_corpus  # noqa: E402
+from enterprise_rag.pipelines.retrieval import HybridRetriever, build_retrievers  # noqa: E402
+from enterprise_rag.retrieval.status import StatusPolicy  # noqa: E402
 from scripts.evaluate import assemble_context  # noqa: E402
 
 

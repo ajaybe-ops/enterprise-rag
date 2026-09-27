@@ -16,18 +16,27 @@ venv/
 htmlcov/
 
 # =============================================================================
-# Evaluation output
+# Evaluation
+# =============================================================================
 #
-# `evaluation/generated/` and `runs/` are build products, not source. The
-# generator is seeded, so re-running it reproduces byte-identical documents and
-# probes; committing them would create a second source of truth that drifts from
-# the generator. The manifests in `runs/` are the exception worth keeping when
-# you need to record exactly which corpus a published number came from -- commit
-# those deliberately, with `git add -f`.
+# `evals/datasets/docs/` and `evals/datasets/probes.json` ARE committed. The
+# generator is seeded and reproduces them byte-for-byte, but a clone that has to
+# run a generator before `pytest` works is a clone where the tests pass against
+# whatever the generator produced today, not against the corpus the published
+# numbers were measured on. Committing them costs ~180KB and removes that
+# ambiguity.
+#
+# `evals/datasets/manifest.json` is NOT committed: it is derived from the
+# documents plus the chunking parameters, so committing it would create a second
+# source of truth that silently disagrees with the chunker. The manifest id it
+# contains is recorded in `evals/reports/` instead, which is where a *published*
+# number belongs.
+#
+# `runs/` is scratch output from ad-hoc comparisons and ablations.
 # =============================================================================
 runs/
-evaluation/generated/
-evaluation/drift/
+evals/datasets/manifest.json
+evals/datasets/*/manifest.json
 
 # =============================================================================
 # Node

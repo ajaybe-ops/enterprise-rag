@@ -30,13 +30,13 @@ import sys
 
 sys.path.insert(0, str(pathlib.Path(__file__).resolve().parents[1]))
 
-from app.config import Settings  # noqa: E402
-from app.corpus.manifest import attach_chunks, build_manifest  # noqa: E402
-from app.evaluation.probe import ProbeSet  # noqa: E402
-from app.evaluation.regression import compare  # noqa: E402
-from app.evaluation.runner import RetrievalExecutor, RunReport, config_fingerprint, run_probe_set  # noqa: E402
-from app.retrieval.corpus import load_corpus  # noqa: E402
-from app.retrieval.pipeline import HybridRetriever, build_retrievers  # noqa: E402
+from enterprise_rag.config.settings import Settings  # noqa: E402
+from enterprise_rag.indexing.manifest import attach_chunks, build_manifest  # noqa: E402
+from enterprise_rag.evaluation.probe import ProbeSet  # noqa: E402
+from enterprise_rag.evaluation.regression import compare  # noqa: E402
+from enterprise_rag.evaluation.runner import RetrievalExecutor, RunReport, config_fingerprint, run_probe_set  # noqa: E402
+from enterprise_rag.indexing.corpus import load_corpus  # noqa: E402
+from enterprise_rag.pipelines.retrieval import HybridRetriever, build_retrievers  # noqa: E402
 
 
 def assemble_context(chunks) -> str:
@@ -192,8 +192,8 @@ def main() -> int:
         f"nDCG@{report.k} {aggregate.ndcg_at_k:.3f}  "
         f"MRR {aggregate.mrr:.3f}  "
         f"facts {aggregate.fact_coverage:.3f}  "
-        f"violations {aggregate.authz_violations:.0f}authz/"
-        f"{aggregate.preference_violations:.0f}pref  "
+        f"violations authz={aggregate.authz_violations:.0f} "
+        f"pref={aggregate.preference_violations:.0f}  "
         f"p95 {aggregate.p95_latency_ms:.0f}ms"
     )
     if aggregate.leakage_count:
