@@ -1,0 +1,40 @@
+# =============================================================================
+# OPTIONAL DEPENDENCIES
+#
+# Everything here is genuinely optional: `app/` imports none of it at module
+# scope, and the reference build runs without it. Each entry lists what breaks
+# and what it buys, because an optional dependency whose failure mode is an
+# unexplained stack trace is not optional, it is just undocumented.
+#
+#   pip install -r requirements-optional.txt
+# =============================================================================
+
+# --- Hosted vector store (app/retrieval/pipeline.py :: QdrantRetriever) ---
+#
+# Gives a hosted ANN index instead of the in-process one. Imported lazily inside
+# `QdrantRetriever.search`, so the class is importable without this installed and
+# only fails if you actually construct it. Note that the Qdrant path filters on
+# `source_type` in the store's filter clause; the in-process retriever filters by
+# tenant and status in Python. Those are not equivalent -- an authorization bug
+# in the store's filter is not caught by the in-process path's tests, and vice
+# versa. Treat a switch to Qdrant as a security-relevant change and re-run the
+# authorization probes, not just the ranking ones.
+qdrant-client
+
+# --- Hosted embeddings ---
+#
+# The dense retriever falls back to an offline LSA projection when no key is
+# configured, which keeps evaluation deterministic. A hosted embedding model
+# improves semantic recall but makes every retrieval score non-reproducible, so
+# the manifests and probe results in this repository assume it is unset.
+# The client is `requests`; no SDK is required.
+
+# --- Local embedding model ---
+#
+# Replaces the LSA fallback with real sentence embeddings. Not installed by
+# default because it is a multi-hundred-megabyte download and pins a torch
+# version, which makes the `numpy`/`opencv` resolution in some environments
+# painful. Local embeddings are also deterministic only for a fixed model
+# version: record the version in the manifest if you enable them.
+# sentence-transformers
+# torch

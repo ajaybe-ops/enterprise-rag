@@ -1,0 +1,54 @@
+# =============================================================================
+# Python
+# =============================================================================
+__pycache__/
+*.py[cod]
+*.egg-info/
+.venv/
+venv/
+.env
+.env.*
+!.env.example
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.coverage
+htmlcov/
+
+# =============================================================================
+# Evaluation output
+#
+# `evaluation/generated/` and `runs/` are build products, not source. The
+# generator is seeded, so re-running it reproduces byte-identical documents and
+# probes; committing them would create a second source of truth that drifts from
+# the generator. The manifests in `runs/` are the exception worth keeping when
+# you need to record exactly which corpus a published number came from -- commit
+# those deliberately, with `git add -f`.
+# =============================================================================
+runs/
+evaluation/generated/
+evaluation/drift/
+
+# =============================================================================
+# Node
+#
+# The root `.gitignore` was previously a single `node_modules/` line, which is
+# why a 150MB tree of dependencies ended up tracked. Ignore it everywhere,
+# including nested projects.
+# =============================================================================
+node_modules/
+npm-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+
+# =============================================================================
+# Local scratch
+# =============================================================================
+tmp/
+*.log
+*.bak
+*.orig
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/
