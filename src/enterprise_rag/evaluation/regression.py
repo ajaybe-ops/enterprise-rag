@@ -34,11 +34,11 @@ is not possible the verdict is `unattributed`.
 from __future__ import annotations
 
 import os
-from collections.abc import Mapping
+from collections.abc import Callable, Mapping
 from dataclasses import dataclass, field
-from typing import Literal
+from typing import Any, Literal
 
-from enterprise_rag.evaluation.probe import Probe, ProbeSet
+from enterprise_rag.evaluation.probe import Probe, ProbeOutcome, ProbeSet
 from enterprise_rag.evaluation.runner import RunReport
 from enterprise_rag.indexing.manifest import CorpusManifest, ManifestDiff
 
@@ -328,8 +328,8 @@ class RegressionReport:
 
 def _attribute_probe(
     probe: Probe,
-    before: object,
-    after: object,
+    before: ProbeOutcome,
+    after: ProbeOutcome,
     diff: ManifestDiff | None,
     config_changed: bool,
 ) -> ProbeRegression:
@@ -389,6 +389,10 @@ def _attribute_probe(
                 )
         for change in diff.modified:
             if change.source in probe.must_retrieve:
+                # A document in `modified` exists in both manifests, so both
+                # records are available. `both()` states that and fails loudly if
+                # it is ever not true.
+                before_doc, after_doc = change.both()
                 if change.rechunked:
                     candidates.append(
                         Cause(
@@ -399,7 +403,7 @@ def _attribute_probe(
                             ),
                             confidence=0.9,
                             evidence=(
-                                f"content hash unchanged ({change.after.content_hash})",
+                                f"content hash unchanged ({after_doc.content_hash})",
                                 change.explain(),
                                 "rank shift is therefore a boundary effect, not a content effect",
                             ),
@@ -412,7 +416,7 @@ def _attribute_probe(
                             summary=f"required document {change.source} was edited",
                             confidence=0.75,
                             evidence=(
-                                f"content {change.before.content_hash} -> {change.after.content_hash}",
+                                f"content {before_doc.content_hash} -> {after_doc.content_hash}",
                                 change.explain(),
                             ),
                         )
@@ -551,6 +555,20 @@ def attribute(
 
     # -- suite-level verdict ------------------------------------------------ #
     evidence: list[str] = []
+    # The corpus branches below repeat `diff is not None` alongside
+    # `corpus_changed`. That is not a redundant belt-and-braces check: a type
+    # checker cannot infer that `corpus_changed` implies a non-None `diff`, and
+    # each of those branches dereferences it. Writing the condition out makes
+    # the narrowing visible in the same place the value is used.
+    #
+    # `verdict` is annotated rather than left to inference because every branch
+    # assigns a pair and the first assignment would otherwise pin it to `str`,
+    # which is not `CauseKind` -- the closed set the report schema and the
+    # consumers of `verdict` both rely on. Declaring it here means a typo in any
+    # one branch is caught at the branch rather than surfacing as an unlabelled
+    # verdict in a saved report.
+    verdict: CauseKind
+    summary: str
     if dataset_changed:
         verdict, summary = (
             "dataset_change",
@@ -558,14 +576,14 @@ def attribute(
             "the runs are not comparable",
         )
         evidence.append("re-run both runs against a single probe set before comparing")
-    elif corpus_changed and config_changed:
+    elif corpus_changed and config_changed and diff is not None:
         verdict, summary = (
             "corpus_edit",
             "both the corpus and the configuration changed; isolate them before acting",
         )
         evidence.append(f"corpus: {diff.summary()}")
         evidence.append("config fingerprints differ")
-    elif corpus_changed:
+    elif corpus_changed and diff is not None:
         rechunks = diff.rechunked
         if rechunks and not (diff.added or diff.removed):
             verdict = "rechunk_shift"
@@ -616,7 +634,13 @@ def attribute(
     # -- metric deltas ------------------------------------------------------ #
     k = candidate.k or baseline.k
     b_agg, c_agg = baseline.aggregate, candidate.aggregate
-    metric_deltas = (
+    # A list, not a tuple: the leakage delta below is conditional, and a tuple
+    # has no `append`. The parenthesised form silently produced a tuple, so
+    # comparing two runs where the leak count differed -- the single most
+    # important comparison this module exists to support -- raised
+    # `AttributeError: 'tuple' object has no attribute 'append'` instead of
+    # reporting the leak.
+    metric_deltas: list[MetricDelta] = [
         MetricDelta("pass_rate", b_agg.pass_rate, c_agg.pass_rate),
         MetricDelta(f"recall_at_{k}", b_agg.recall_at_k, c_agg.recall_at_k),
         MetricDelta(f"ndcg_at_{k}", b_agg.ndcg_at_k, c_agg.ndcg_at_k),
@@ -636,7 +660,7 @@ def attribute(
             tolerance=1.0,
             higher_is_better=False,
         ),
-    )
+    ]
     if b_agg.leakage_count != c_agg.leakage_count:
         metric_deltas.append(
             MetricDelta(
@@ -665,7 +689,10 @@ def attribute(
         manifest_diff=diff,
         regressions=tuple(regressions),
         improvements=tuple(improvements),
-        metric_deltas=metric_deltas,
+        # A tuple because the report field is declared as one, and a report that
+        # can be appended to after the fact is not the immutable record it is
+        # supposed to be.
+        metric_deltas=tuple(metric_deltas),
         per_kind_deltas=per_kind,
     )
 
@@ -692,7 +719,7 @@ def compare(
     it would push every user into a pointless `str()` conversion at the call
     site.
     """
-    def _load(value, loader):
+    def _load(value: Any, loader: Callable[[Any], Any]) -> Any:
         if value is None:
             return None
         return loader(value) if isinstance(value, (str, os.PathLike)) else value

@@ -21,9 +21,9 @@ returns, and the source always travels with the content it belongs to.
 from __future__ import annotations
 
 import hashlib
-from collections.abc import Iterable, Sequence
+from collections.abc import Iterable, Iterator, Sequence
 from dataclasses import dataclass, field, replace
-from typing import Literal
+from typing import Any, Literal
 
 __all__ = ["Answer", "Chunk", "QueryAnalysis", "RetrievalResult", "Usage"]
 
@@ -94,7 +94,7 @@ class Chunk:
     def citation_label(self) -> str:
         return self.source
 
-    def with_scores(self, **kwargs) -> Chunk:
+    def with_scores(self, **kwargs: Any) -> Chunk:
         return replace(self, **kwargs)
 
     def to_payload(self) -> dict:
@@ -110,7 +110,12 @@ class Chunk:
         }
 
     @classmethod
-    def from_payload(cls, payload: dict, vector_id: int | None = None, score: float = 0.0):
+    def from_payload(
+        cls,
+        payload: dict[str, Any],
+        vector_id: int | None = None,
+        score: float = 0.0,
+    ) -> Chunk:
         return cls(
             chunk_id=payload.get("chunk_id") or stable_chunk_id(
                 payload.get("source", "unknown"),
@@ -175,7 +180,7 @@ class RetrievalResult:
     def __len__(self) -> int:
         return len(self.chunks)
 
-    def __iter__(self):
+    def __iter__(self) -> Iterator[Chunk]:
         return iter(self.chunks)
 
     @property

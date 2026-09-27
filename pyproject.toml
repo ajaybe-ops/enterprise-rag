@@ -160,7 +160,7 @@ ignore = [
 # they are visually confusable, which is true and is the point here. A per-file
 # ignore is the only option that works at all: a `# noqa` cannot be placed
 # inside a docstring without becoming part of its text.
-"tests/unit/test_source_encoding.py" = ["RUF001", "RUF002"]
+"tests/unit/test_source_encoding.py" = ["RUF001", "RUF002", "RUF003"]
 
 [tool.ruff.lint.isort]
 known-first-party = ["enterprise_rag"]

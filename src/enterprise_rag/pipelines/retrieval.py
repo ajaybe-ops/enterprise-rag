@@ -17,7 +17,7 @@ from __future__ import annotations
 import time
 from collections.abc import Sequence
 from dataclasses import dataclass
-from typing import Protocol, runtime_checkable
+from typing import Any, Protocol, runtime_checkable
 
 from enterprise_rag.config.settings import Settings
 from enterprise_rag.indexing.corpus import Corpus
@@ -31,7 +31,13 @@ from enterprise_rag.retrieval.confidence import (
 from enterprise_rag.retrieval.dense import Embedder
 from enterprise_rag.retrieval.sparse import BM25Index, build_index
 from enterprise_rag.retrieval.status import StatusPolicy
-from enterprise_rag.types import Chunk, QueryAnalysis, RetrievalResult, renumber
+from enterprise_rag.types import (
+    Chunk,
+    QueryAnalysis,
+    RetrievalResult,
+    RetrievalStrategy,
+    renumber,
+)
 
 __all__ = [
     "ALLOWED_SOURCE_TYPES",
@@ -92,6 +98,26 @@ class _DenseRetriever:
         return self._embedder.search(query, self._chunks, top_k)
 
 
+@runtime_checkable
+class QdrantLike(Protocol):
+    """The slice of the Qdrant client this retriever actually uses.
+
+    `query_points` is the only method called. Declaring that as a protocol rather
+    than importing `QdrantClient` is right for two reasons: the client is built
+    by the caller and passed in, so this class has no business naming its
+    concrete type; and `qdrant_client` is an optional dependency, so a name from
+    it must not appear in a module annotation that has to import cleanly when the
+    package is absent.
+
+    The return type is `Any` because the response shape is a qdrant model with
+    vector-typed fields, and re-declaring that here to satisfy a checker would
+    duplicate the library's types badly enough to rot. The consumer below reads
+    three attributes off each point, which is the real contract.
+    """
+
+    def query_points(self, **kwargs: Any) -> Any: ...
+
+
 class _QdrantRetriever:
     """Dense retrieval against a Qdrant collection, with the scope filter applied
     server-side rather than in Python.
@@ -102,7 +128,13 @@ class _QdrantRetriever:
     mixed.
     """
 
-    def __init__(self, client, collection: str, embedder: Embedder, source_types: frozenset[str]) -> None:
+    def __init__(
+        self,
+        client: QdrantLike,
+        collection: str,
+        embedder: Embedder,
+        source_types: frozenset[str],
+    ) -> None:
         self._client = client
         self._collection = collection
         self._embedder = embedder
@@ -202,7 +234,7 @@ class HybridRetriever:
             self.status_policy = StatusPolicy.from_settings(self.settings)
 
     @property
-    def strategy(self) -> str:
+    def strategy(self) -> RetrievalStrategy:
         if "sparse" in self.retrievers and "dense" in self.retrievers:
             return "hybrid"
         return "dense" if "dense" in self.retrievers else "bm25"

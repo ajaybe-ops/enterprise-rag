@@ -91,7 +91,11 @@ class Trace:
     def spans(self) -> list[Span]:
         if not hasattr(self._local, "spans"):
             self._local.spans = []
-        return self._local.spans
+        # `self._local` is untyped, so the attribute read is `Any`. Copied into a
+        # new list rather than returned directly: this is a live list that
+        # callers iterate while spans are still being pushed, and handing out the
+        # internal object means a caller mutating the result mutates the tracer.
+        return list(self._local.spans)
 
     def reset(self) -> None:
         self._local.spans = []
@@ -171,7 +175,7 @@ def error(message: str, **fields: Any) -> dict:
     return log("error", message, **fields)
 
 
-def configure(*_args, **_kwargs) -> None:
+def configure(*_args: Any, **_kwargs: Any) -> None:
     """No-op kept so call sites that configured the previous SDK still import.
 
     Present deliberately: a no-op named `configure` is the cheapest possible

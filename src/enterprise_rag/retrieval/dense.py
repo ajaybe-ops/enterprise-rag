@@ -26,12 +26,21 @@ import time
 from collections import Counter
 from collections.abc import Sequence
 from dataclasses import dataclass
+from typing import TYPE_CHECKING, Any, cast
 
 import numpy as np
 
 from enterprise_rag.config.settings import Settings
 from enterprise_rag.text import analyze
 from enterprise_rag.types import Chunk
+
+if TYPE_CHECKING:
+    # Annotation-only. `requests` is an optional dependency used solely by the
+    # hosted embedder below, and importing it for real at module scope would make
+    # it a hard requirement of the offline path. `from __future__ import
+    # annotations` makes every annotation a string, so this satisfies the checker
+    # without the runtime cost.
+    import requests
 
 __all__ = [
     "Embedder",
@@ -119,21 +128,28 @@ class LSARetriever:
     def _normalize(vectors: np.ndarray) -> np.ndarray:
         norms = np.linalg.norm(vectors, axis=1, keepdims=True)
         norms[norms == 0] = 1.0
-        return (vectors / norms).astype(np.float32)
+        return cast("np.ndarray", (vectors / norms).astype(np.float32))
 
     def _vectorize(self, text: str) -> np.ndarray:
-        if self._matrix is None or self._matrix.size == 0:
+        # Bound to locals so the None cases are narrowed once, here, instead of
+        # being re-tested at every use. `fit` sets `_vocab`, `_idf` and `_matrix`
+        # together and falls back to empty values when the corpus is too small to
+        # project, so all three are None or empty together -- but that coupling
+        # lives in another method, and a guard that only checked `_matrix` would
+        # be relying on it implicitly.
+        matrix, vocab, idf = self._matrix, self._vocab, self._idf
+        if matrix is None or vocab is None or idf is None or matrix.size == 0:
             return np.zeros((0,), dtype=np.float32)
-        counts = np.zeros((len(self._vocab),), dtype=np.float32)
+        counts = np.zeros((len(vocab),), dtype=np.float32)
         for token, tf in Counter(analyze(text)).items():
-            index = self._vocab.get(token)
+            index = vocab.get(token)
             if index is not None:
                 counts[index] = tf
         counts = np.log1p(counts)
         norm = np.linalg.norm(counts)
         if norm:
             counts /= norm
-        return (counts * self._idf) @ self._matrix
+        return cast("np.ndarray", (counts * idf) @ matrix)
 
     def scores(self, query: str) -> np.ndarray:
         if self._doc_vectors is None or self._doc_vectors.size == 0:
@@ -143,7 +159,7 @@ class LSARetriever:
             return np.zeros(len(self.chunks), dtype=np.float32)
         norm = np.linalg.norm(query_vector)
         query_vector = query_vector / norm if norm else query_vector
-        return self._doc_vectors @ query_vector
+        return cast("np.ndarray", self._doc_vectors @ query_vector)
 
     def search(self, query: str, top_k: int) -> list[Chunk]:
         scores = self.scores(query)
@@ -164,7 +180,13 @@ class JinaDenseRetriever:
 
     def __init__(self, settings: Settings) -> None:
         self.settings = settings
-        self._session = None
+        # Created on first use rather than in __init__ so that constructing the
+        # embedder -- which happens on every `build_retrievers` call, including
+        # the many that never query anything -- does not open a socket pool.
+        # `requests` is imported lazily for the same reason: it is an optional
+        # dependency and importing it must not be a cost paid by the offline
+        # path that never reaches this class.
+        self._session: requests.Session | None = None
 
     @property
     def dim(self) -> int:
@@ -188,7 +210,9 @@ class JinaDenseRetriever:
                     timeout=self.settings.embeddings_timeout_s,
                 )
                 response.raise_for_status()
-                return response.json()
+                # An embeddings response is a JSON object; `json()` is typed as `Any`.
+                body: dict[str, Any] = response.json()
+                return body
             except Exception as exc:
                 last_error = exc
                 text = str(exc).lower()
@@ -299,7 +323,7 @@ class Embedder:
             return matrix
         norms = np.linalg.norm(matrix, axis=1, keepdims=True)
         norms[norms == 0] = 1.0
-        return (matrix / norms).astype(np.float32)
+        return cast("np.ndarray", (matrix / norms).astype(np.float32))
 
     def search(self, query: str, chunks: Sequence[Chunk], top_k: int) -> list[Chunk]:
         """Brute-force cosine over `chunks`.

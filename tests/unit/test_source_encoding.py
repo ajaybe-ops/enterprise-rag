@@ -58,6 +58,13 @@ TEXT_SUFFIXES = {".py", ".md", ".yml", ".yaml", ".toml", ".json", ".txt", ".exam
 # source. See the docstring for why the corpus is excluded.
 SKIP_DIRS = {".git", ".venv", "runs", "build", "dist", ".ruff_cache", ".pytest_cache", "__pycache__"}
 
+# This file, excluded from its own scan. It has to contain real mojibake to test
+# for real mojibake: the docstring documents the `â` `†` `’` sequence and
+# `test_unmojibake_survives_mixed_legitimate_and_damaged_text` constructs it at
+# runtime. Those are the only double-encoded characters allowed anywhere in the
+# tree, and this is where they live.
+SELF = "tests/unit/test_source_encoding.py"
+
 
 def tracked_text_files() -> list[Path]:
     """Text files under version control, via `git ls-files`.
@@ -84,7 +91,10 @@ def tracked_text_files() -> list[Path]:
     return [
         p
         for p in paths
-        if p.is_file() and p.suffix.lower() in TEXT_SUFFIXES and not SKIP_DIRS & set(p.parts)
+        if p.is_file()
+        and p.suffix.lower() in TEXT_SUFFIXES
+        and not SKIP_DIRS & set(p.parts)
+        and p.relative_to(ROOT).as_posix() != SELF
     ]
 
 

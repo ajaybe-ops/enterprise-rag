@@ -65,7 +65,7 @@ from __future__ import annotations
 import hashlib
 import json
 import pathlib
-from collections.abc import Iterable, Mapping, Sequence
+from collections.abc import Iterable, Iterator, Mapping, Sequence
 from dataclasses import dataclass
 from typing import Literal
 
@@ -234,7 +234,7 @@ class ProbeSet:
     def __len__(self) -> int:
         return len(self.probes)
 
-    def __iter__(self):
+    def __iter__(self) -> Iterator[Probe]:
         return iter(self.probes)
 
     def by_id(self, probe_id: str) -> Probe | None:

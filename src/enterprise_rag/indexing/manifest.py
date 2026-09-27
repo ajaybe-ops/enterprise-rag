@@ -40,7 +40,7 @@ import hashlib
 import json
 import pathlib
 import re
-from collections.abc import Iterable, Mapping, Sequence
+from collections.abc import Iterable, Iterator, Mapping, Sequence
 from dataclasses import dataclass, field, replace
 
 __all__ = [
@@ -238,6 +238,24 @@ class ChangedDocument:
             and self.before.chunk_ids != self.after.chunk_ids
         )
 
+    def both(self) -> tuple[DocumentRecord, DocumentRecord]:
+        """The before and after records, for a document that exists in both.
+
+        `rechunked` is only True when both records are present, and a document in
+        `ManifestDiff.modified` always has both by construction -- but neither
+        fact is visible to a type checker, so callers that need the records
+        rather than the flag come through here. The check raises with the
+        document name instead of letting an `AttributeError` on `None` surface
+        somewhere further away with no context.
+        """
+        if self.before is None or self.after is None:
+            raise ValueError(
+                f"{self.source}: expected a document present in both manifests, "
+                f"got before={'set' if self.before else 'missing'} "
+                f"after={'set' if self.after else 'missing'}"
+            )
+        return self.before, self.after
+
     def explain(self) -> str:
         if self.kind == "added":
             return f"{self.source}: added ({self.after.chunk_count if self.after else 0} chunks)"
@@ -323,7 +341,7 @@ class CorpusManifest:
     def __len__(self) -> int:
         return len(self.records)
 
-    def __iter__(self):
+    def __iter__(self) -> Iterator[DocumentRecord]:
         return iter(self.records)
 
     @property

@@ -38,9 +38,12 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Protocol
 
+from enterprise_rag.config.settings import Settings
 from enterprise_rag.evaluation.metrics import AggregateReport, aggregate, evaluate_probe
 from enterprise_rag.evaluation.probe import Probe, ProbeOutcome, ProbeSet
+from enterprise_rag.pipelines.retrieval import HybridRetriever
 from enterprise_rag.security.access import Principal, authorise
+from enterprise_rag.types import Chunk
 
 __all__ = [
     "ProbeExecution",
@@ -113,10 +116,17 @@ class RetrievalExecutor:
     call site passes the real one.
     """
 
-    retriever: object
-    settings: object
+    # The real types, not `object`. `object` was presumably a way of avoiding an
+    # import, but it defeats the point: it hides which method is being called, so
+    # naming it as `Retriever` (whose contract is `search`) briefly hid the fact
+    # that the executor calls `retrieve`, which only `HybridRetriever` has.
+    retriever: HybridRetriever
+    settings: Settings
     top_k: int = 5
-    assemble_context: Callable[[Sequence], str] | None = None
+    # Sequence[Chunk] in and str out, matching ContextBuilder.assembly and the
+    # Pipeline's own call site, so fact_coverage is measured against the same
+    # contract the serving path uses.
+    assemble_context: Callable[[Sequence[Chunk]], str] | None = None
     should_abstain: Callable[[float], bool] | None = None
     tenant_filter: Callable[[Probe], Sequence[str]] | None = None
     authorise: bool = True
@@ -237,7 +247,7 @@ class RunReport:
             payload["outcomes"] = [o.to_dict() for o in self.outcomes]
         return payload
 
-    def save(self, path) -> str:
+    def save(self, path: str | Path) -> str:
         target = Path(path)
         # `parents=True` covers the common `--out runs/nested/report.json` case.
         # `mkdir(exist_ok=True)` on a bare filename resolves to `.`, which already
@@ -250,7 +260,7 @@ class RunReport:
         return str(target)
 
     @classmethod
-    def load(cls, path) -> RunReport:
+    def load(cls, path: str | Path) -> RunReport:
         with Path(path).open(encoding="utf-8") as handle:
             payload = json.load(handle)
         aggregate_payload = payload["aggregate"]

@@ -14,7 +14,7 @@ stable-ID assignment slightly differently.
 from __future__ import annotations
 
 import pathlib
-from collections.abc import Iterable, Sequence
+from collections.abc import Collection, Iterable, Iterator, Sequence
 from dataclasses import dataclass
 
 from enterprise_rag.chunking.splitter import chunk_text
@@ -44,10 +44,10 @@ class Corpus:
     def __len__(self) -> int:
         return len(self.chunks)
 
-    def __iter__(self):
+    def __iter__(self) -> Iterator[Chunk]:
         return iter(self.chunks)
 
-    def scoped(self, allowed: Sequence[str] | None = None) -> Corpus:
+    def scoped(self, allowed: Collection[str] | None = None) -> Corpus:
         """Restrict to a set of `source_type` values.
 
         The scope filter is applied at *retrieval* time as well as here, because

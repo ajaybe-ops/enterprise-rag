@@ -194,8 +194,9 @@ def verify(
         overlap = len(content & haystack) / len(content)
         introduces_new_terms = bool(content - evidence_words)
         if overlap >= threshold and not introduces_new_terms:
-            chunk = supporting_chunk(sentence, chunks)
-            if chunk is not None:
+            support = supporting_chunk(sentence, chunks)
+            if support is not None:
+                chunk = support
                 citations.append(
                     Citation(
                         source=chunk.source,

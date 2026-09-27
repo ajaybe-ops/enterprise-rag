@@ -51,8 +51,12 @@ def describe_drift(committed: dict[str, Any], fresh: dict[str, Any]) -> list[str
     assumed.
     """
     notes: list[str] = []
-    committed_docs = {d.get("path") for d in committed.get("documents", [])}
-    fresh_docs = {d.get("path") for d in fresh.get("documents", [])}
+    # The manifest stores documents under `records`; `documents` is the key used
+    # in a manifest *diff*, not in a manifest file. Reading the wrong one yields
+    # an empty set, which makes the document diff silently report "no change" on
+    # exactly the run it exists to explain.
+    committed_docs = {r.get("source") for r in committed.get("records", ())}
+    fresh_docs = {r.get("source") for r in fresh.get("records", ())}
     for label, difference in (
         ("added", fresh_docs - committed_docs),
         ("removed", committed_docs - fresh_docs),

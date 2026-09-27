@@ -58,6 +58,7 @@ from __future__ import annotations
 import re
 from collections.abc import Iterable
 from dataclasses import dataclass
+from typing import Any
 
 __all__ = ["DEFAULT_DEMOTED", "DEFAULT_SUPERSEDED", "PRELIMINARY_INTENT", "StatusPolicy"]
 
@@ -154,10 +155,21 @@ class StatusPolicy:
         """Split chunks into (kept, demoted, excluded), preserving order."""
         kept, demoted, excluded = [], [], []
         for chunk in chunks:
-            metadata = getattr(chunk, "metadata", None) or {}
+            raw = getattr(chunk, "metadata", None)
+            metadata: dict[str, Any] = raw if isinstance(raw, dict) else {}
+            # `is_excluded` takes the whole mapping; `is_demoted` takes the status
+            # string. They are not interchangeable. Passing the mapping to
+            # `is_demoted` -- which is what this did -- reaches
+            # `(status or "").strip()` with a dict and raises
+            # `AttributeError: 'dict' object has no attribute 'strip'` on the
+            # first chunk that is not superseded. Nothing caught it because
+            # `partition` has no caller, so the one line that used it was never
+            # executed by a test or by the pipeline.
+            status_value = metadata.get("status")
+            status = status_value if isinstance(status_value, str) else None
             if self.is_excluded(metadata):
                 excluded.append(chunk)
-            elif self.is_demoted(metadata):
+            elif self.is_demoted(status):
                 demoted.append(chunk)
             else:
                 kept.append(chunk)

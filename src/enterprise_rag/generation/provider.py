@@ -37,6 +37,7 @@ from typing import Any
 import requests
 
 from enterprise_rag.config.settings import Settings
+from enterprise_rag.observability import tracing
 from enterprise_rag.types import Usage
 
 __all__ = [
@@ -133,7 +134,11 @@ def _post(
                 time.sleep(random.uniform(0, 2**attempt))
                 continue
             response.raise_for_status()
-            return response.json()
+            # A chat-completion body is a JSON object. `response.json()` is typed as
+            # `Any`; asserting the shape here means every caller above gets a real
+            # `dict` instead of an `Any` that fails somewhere further away.
+            parsed: dict[str, Any] = response.json()
+            return parsed
         except requests.RequestException as exc:
             last_error = exc
             if attempt >= attempts - 1:
@@ -184,8 +189,16 @@ def complete(
     *,
     temperature: float = 0.0,
     max_tokens: int | None = None,
+    feature: str = "generation",
 ) -> tuple[str, Usage]:
     """Single chat completion. Returns `(content, usage)`.
+
+    `feature` labels the call in tracing and usage so a query rewrite is
+    distinguishable from the answer it helps produce. It exists because
+    `retrieval.analysis` has been passing it since the query-rewriting path was
+    written -- into a signature that never had it, so every rewrite raised
+    `TypeError` and was caught by the caller's bare `except`, leaving a feature
+    that looked implemented and never once ran.
 
     Raises `LLMUnavailable` when no provider is configured or the call fails.
     Callers decide whether that is fatal; the pipeline degrades to the
@@ -199,7 +212,8 @@ def complete(
         )
 
     started = time.perf_counter()
-    payload = _post(settings, messages, temperature=temperature, max_tokens=max_tokens)
+    with tracing.span("llm.complete", feature=feature, model=settings.llm_model):
+        payload = _post(settings, messages, temperature=temperature, max_tokens=max_tokens)
     prompt_hint, _ = token_stats(messages, "")
     content, usage = _extract(payload, prompt_hint)
 

@@ -57,6 +57,13 @@ tmp/
 *.log
 *.bak
 *.orig
+
+# `python -m build` output. A wheel is a build artifact, not source: it is
+# reproduced from `pyproject.toml` and CI verifies it, so committing one only
+# creates a second thing that can drift from the code it claims to contain.
+dist/
+build/
+*.egg-info/
 .DS_Store
 Thumbs.db
 .idea/

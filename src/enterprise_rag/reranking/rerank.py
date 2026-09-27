@@ -35,10 +35,11 @@ import math
 import time
 from collections import Counter
 from collections.abc import Sequence
+from typing import Any, cast
 
 from enterprise_rag.config.settings import Settings
 from enterprise_rag.text import analyze
-from enterprise_rag.types import Chunk, renumber
+from enterprise_rag.types import Chunk, RerankStrategy, renumber
 
 __all__ = ["lexical_overlap_scores", "rerank"]
 
@@ -89,13 +90,13 @@ def _jina_rerank(
         "documents": [c.text for c in chunks],
         "top_n": min(top_n, len(chunks)),
     }
-    response = requests.post(
+    response: requests.Response = requests.post(
         f"{settings.embeddings_base_url}/rerank",
         headers={
             "Authorization": f"Bearer {settings.embeddings_api_key}",
             "Content-Type": "application/json",
         },
-        json=payload,
+        json=cast("Any", payload),  # requests types this as a narrow JsonType alias
         timeout=settings.embeddings_timeout_s,
     )
     response.raise_for_status()
@@ -119,7 +120,7 @@ def rerank(
     query: str,
     chunks: Sequence[Chunk],
     top_n: int,
-) -> tuple[list[Chunk], str, float]:
+) -> tuple[tuple[Chunk, ...], RerankStrategy, float]:
     """Rerank `chunks` against `query`, returning (top chunks, strategy, ms).
 
     The order of the returned list is the reranked order. `strategy` names the
@@ -127,7 +128,7 @@ def rerank(
     (a configured `jina` reranker with no API key degrades and says so).
     """
     if not chunks:
-        return [], "none", 0.0
+        return (), "none", 0.0
 
     started = time.perf_counter()
     requested = settings.retrieval.rerank

@@ -156,7 +156,8 @@ def ingest_directory(
     in_dir, out_dir = Path(in_dir), Path(out_dir)
     out_dir.mkdir(parents=True, exist_ok=True)
 
-    written, skipped = [], []
+    written: list[str] = []
+    skipped: list[str] = []
     for path in sorted(in_dir.iterdir()):
         if not path.is_file() or path.suffix.lower() not in SUPPORTED:
             continue
@@ -167,6 +168,9 @@ def ingest_directory(
     return {
         "written": written,
         "skipped": skipped,
-        "documents": len(manifest.documents),
+        # `records`, not `documents`. The attribute is `records`; naming it
+        # `documents` here raised AttributeError on every call, which is why
+        # this function had no test -- it was never run.
+        "documents": len(manifest.records),
         "manifest_id": manifest.manifest_id,
     }
