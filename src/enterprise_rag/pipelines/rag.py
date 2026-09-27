@@ -30,8 +30,9 @@ answer is a field in it.
 from __future__ import annotations
 
 import time
+from collections.abc import Sequence
 from dataclasses import dataclass, field
-from typing import Any, Sequence
+from typing import Any
 
 from enterprise_rag.caching.result_cache import ResultCache, cache_key
 from enterprise_rag.citations.models import CitationReport
@@ -271,8 +272,7 @@ class RagPipeline:
 
         if access.should_refuse or not visible:
             return self._abstain(
-                question=question,
-                reason=access.reason or "no readable evidence within the caller's scope",
+                    reason=access.reason or "no readable evidence within the caller's scope",
                 result=result,
                 usage=usage,
                 trace=trace,
@@ -329,8 +329,7 @@ class RagPipeline:
 
         if not generation.text.strip():
             return self._abstain(
-                question=question,
-                reason=generation.reason or "the generator produced no text for the retrieved evidence",
+                    reason=generation.reason or "the generator produced no text for the retrieved evidence",
                 result=result,
                 usage=usage,
                 trace=trace,
@@ -359,8 +358,7 @@ class RagPipeline:
             # answer presented as complete is the failure most likely to mislead
             # without being noticed.
             return self._abstain(
-                question=question,
-                reason=(
+                    reason=(
                     f"none of the {report.total_sentences} generated sentence(s) could be "
                     f"traced to the retrieved evidence; withdrawn rather than serving an "
                     f"unattributable answer"
@@ -408,7 +406,6 @@ class RagPipeline:
     def _abstain(
         self,
         *,
-        question: str,
         reason: str,
         result: RetrievalResult,
         usage: Usage,

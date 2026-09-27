@@ -14,8 +14,6 @@ none of these skip: a fresh clone exercises the real index.
 
 from __future__ import annotations
 
-import pytest
-
 
 class TestHealth:
     def test_health_reports_the_loaded_corpus(self, client):
@@ -166,7 +164,7 @@ class TestDeterminism:
         assert first["answer"] == second["answer"]
         # The second call is a cache hit, and the trace must say so rather than
         # reporting it as a fresh retrieval.
-        retrieve = [s for s in second["trace"]["stages"] if s["stage"] == "retrieve"][0]
+        retrieve = next(s for s in second["trace"]["stages"] if s["stage"] == "retrieve")
         assert retrieve["cache_hit"] is True
 
 

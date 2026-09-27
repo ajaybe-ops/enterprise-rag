@@ -1,0 +1,163 @@
+name: tests
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+# Cancel superseded runs on the same ref. A force-push to a PR that lands twice
+# does not need the first run's minutes spent twice.
+concurrency:
+  group: tests-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  test:
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        # The corpus manifest is content-addressed and the whole point is that a
+        # run is reproducible. If the suite only passes on one OS or one Python
+        # version, the reproduction claim is false. The manifest id is asserted
+        # to be identical across the matrix, which is what actually tests that.
+        os: [ubuntu-latest, windows-latest]
+        python-version: ["3.11", "3.12"]
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v5
+        with:
+          enable-cache: true
+
+      - name: Install
+        # `--frozen` fails if uv.lock is stale relative to pyproject.toml, so a
+        # dependency edit that forgets to re-lock cannot reach main. The offline
+        # evaluation suite is part of the test run, not a separate gate: if
+        # retrieval regresses, the unit tests that assert on ranking should fail
+        # in the same job rather than in a workflow someone has to remember.
+        run: uv sync --frozen --extra dev
+
+      - name: Lint
+        run: uv run ruff check .
+
+      - name: Test
+        run: uv run pytest -q
+
+      - name: Verify the corpus regenerates to the same manifest
+        # The committed dataset is what makes the evaluation reproducible, so a
+        # generator change that silently alters the corpus is a change to every
+        # published number. Regenerating into a temp directory and comparing the
+        # manifest id catches it here rather than in a diff nobody reads.
+        #
+        # `shell: bash` is explicit because this runs on the Windows matrix leg
+        # too, where the default shell is PowerShell. In PowerShell
+        # `"$RUNNER_TEMP/regen"` is a literal string -- the variable is not
+        # expanded inside double quotes, it needs `$env:RUNNER_TEMP` -- so the
+        # corpus would land in a directory actually named `$RUNNER_TEMP`. The
+        # comparison logic is a committed script rather than an inline `python -c`
+        # because nested quoting across bash, PowerShell and Python is where
+        # this kind of check quietly breaks on one OS only.
+        shell: bash
+        run: |
+          uv run python scripts/generate_corpus.py --out "$RUNNER_TEMP/regen"
+          uv run python scripts/verify_manifest.py \
+            --committed evals/datasets/manifest.json \
+            --regenerated "$RUNNER_TEMP/regen/manifest.json"
+
+  static-checks:
+    # Lint and type checking once, on one interpreter. Running them inside the
+    # test matrix would repeat identical work four times over to produce the same
+    # answer, and mypy is configured for a single python_version anyway -- so a
+    # matrix leg would silently check the same thing twice rather than twice
+    # usefully. A separate job also keeps a type error from being reported as
+    # four failures against two operating systems.
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: astral-sh/setup-uv@v5
+
+      - run: uv sync --frozen --extra dev
+
+      - name: Lint
+        run: uv run ruff check .
+
+      - name: Type check
+        run: uv run mypy
+
+  api-smoke:
+    # A real uvicorn process, over real HTTP, answering a real question. The
+    # integration tests use an in-process ASGI transport, which cannot catch a
+    # server that will not start or a route that is not mounted.
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: astral-sh/setup-uv@v5
+
+      - run: uv sync --frozen --extra dev
+
+      - name: Start the service
+        run: |
+          uv run uvicorn enterprise_rag.api.app:app --host 127.0.0.1 --port 8000 &
+          for _ in $(seq 1 30); do
+            curl -fsS http://127.0.0.1:8000/health && break
+            sleep 1
+          done
+
+      - name: Health
+        run: curl -fsS http://127.0.0.1:8000/health
+
+      - name: Metrics are Prometheus text
+        run: |
+          curl -fsS http://127.0.0.1:8000/metrics | grep -q '^enterprise_rag' \
+            || { echo 'metrics output is not Prometheus text'; exit 1; }
+
+      - name: Answer a question and require evidence
+        run: |
+          curl -fsS -X POST http://127.0.0.1:8000/query \
+            -H 'content-type: application/json' \
+            -d '{"query": "What is the atlas-ingest availability objective?", "tenant": "public"}' \
+            > response.json
+          uv run python -c "
+          import json
+          r = json.load(open('response.json'))
+          assert r['status'] in {'answered', 'abstained'}, r['status']
+          if r['status'] == 'answered':
+              assert r['citations'], 'answered without evidence'
+          print(r['status'], '|', len(r.get('sources', [])), 'source(s)')
+          "
+
+  docker:
+    # The image is a deliverable, so it is built rather than assumed. A broken
+    # Dockerfile that no job exercises is a broken Dockerfile nobody finds out
+    # about until someone tries to run the project.
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Build
+        run: docker build -t enterprise-rag:test .
+
+      - name: The image starts and reports healthy
+        run: |
+          docker run -d --name rag -p 8000:8000 enterprise-rag:test
+          for _ in $(seq 1 30); do
+            curl -fsS http://127.0.0.1:8000/health && break
+            sleep 1
+          done
+          # Assert on parsed JSON, not on `grep` of formatted output. Matching
+          # the literal substring '"generation": "extractive"' couples the check
+          # to the serializer's spacing; a JSON parse asserts the same fact and
+          # survives someone switching to compact separators.
+          docker exec rag enterprise-rag capabilities > capabilities.json
+          uv run python -c "
+          import json
+          caps = json.load(open('capabilities.json', encoding='utf-8'))['capabilities']
+          assert caps['generation'] == 'extractive', caps
+          print('generation:', caps['generation'], '| rerank:', caps['rerank'])
+          "
+          docker rm -f rag

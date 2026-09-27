@@ -1,4 +1,4 @@
-"""Ingestion: files on disk â†’ text â†’ a versioned corpus.
+"""Ingestion: files on disk → text → a versioned corpus.
 
 Replaces the previous `processor.py`, which parsed documents correctly and then
 threw the result away into a Qdrant upsert guarded by an in-process registry.
@@ -27,14 +27,14 @@ import os
 from dataclasses import dataclass
 from pathlib import Path
 
-from enterprise_rag.observability import tracing as logfire  # vendor-free tracing shim
 from enterprise_rag.indexing.manifest import build_manifest, normalise_text
+from enterprise_rag.observability import tracing as logfire  # vendor-free tracing shim
 from enterprise_rag.parsing.html import parse_html
 from enterprise_rag.parsing.office import parse_office
 from enterprise_rag.parsing.pdf import parse_pdf
 from enterprise_rag.parsing.text import parse_text
 
-__all__ = ["ExtractedDocument", "extract", "ingest_file", "ingest_directory", "SUPPORTED"]
+__all__ = ["SUPPORTED", "ExtractedDocument", "extract", "ingest_directory", "ingest_file"]
 
 SUPPORTED = frozenset({".pdf", ".docx", ".pptx", ".html", ".htm", ".md", ".txt", ".text"})
 

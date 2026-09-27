@@ -43,7 +43,7 @@ FIXTURE_CORPUS = Path(__file__).parent / "fixtures" / "corpus"
 def _reset_process_state():
     """Restore global config and rate-limit state around every test."""
     from enterprise_rag.api.security import reset_rate_limits
-    from enterprise_rag.config.settings import get_settings, reset_settings, set_settings
+    from enterprise_rag.config.settings import get_settings, set_settings
 
     before = get_settings()
     reset_rate_limits()
@@ -91,7 +91,7 @@ def client(eval_corpus, monkeypatch):
 
     from enterprise_rag.api.app import create_app
     from enterprise_rag.api.deps import state
-    from enterprise_rag.config.settings import get_settings
+    from enterprise_rag.config.settings import get_settings, set_settings
 
     settings = get_settings().with_overrides(
         corpus_dir=str(eval_corpus),
@@ -99,6 +99,13 @@ def client(eval_corpus, monkeypatch):
         # has its own test.
         rate_limit_per_minute=10_000,
     )
+    # The app resolves configuration through `get_settings()` at request time, so
+    # the overrides above only take effect once installed. An earlier version of
+    # this fixture built `settings` and never installed it: the app silently fell
+    # back to the default corpus and the real 20-per-minute limiter, and every
+    # API test was passing against a configuration nobody had chosen. Tests
+    # asserting on 429s would have been order-dependent for the same reason.
+    set_settings(settings)
     state.invalidate()
     with TestClient(create_app()) as test_client:
         yield test_client

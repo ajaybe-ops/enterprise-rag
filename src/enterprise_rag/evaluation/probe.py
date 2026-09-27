@@ -65,15 +65,16 @@ from __future__ import annotations
 import hashlib
 import json
 import pathlib
-from dataclasses import dataclass, field
-from typing import Iterable, Literal, Mapping, Sequence
+from collections.abc import Iterable, Mapping, Sequence
+from dataclasses import dataclass
+from typing import Literal
 
 __all__ = [
-    "Probe",
-    "ProbeSet",
-    "ProbeOutcome",
-    "ProbeKind",
     "PROBE_KINDS",
+    "Probe",
+    "ProbeKind",
+    "ProbeOutcome",
+    "ProbeSet",
     "load_probe_set",
 ]
 
@@ -167,7 +168,11 @@ class Probe:
         # Default the severity from the kind when it was not stated, so a
         # hand-written probe set cannot silently classify an access-control
         # expectation as a mere preference and have it reported as a warning.
-        if self.must_not and self.kind in {"forbidden", "unanswerable"} and self.must_not_kind == "preference":
+        if (
+            self.must_not
+            and self.kind in {"forbidden", "unanswerable"}
+            and self.must_not_kind == "preference"
+        ):
             object.__setattr__(self, "must_not_kind", "authorization")
 
     @property
@@ -193,7 +198,7 @@ class Probe:
         }
 
     @classmethod
-    def from_dict(cls, payload: Mapping) -> "Probe":
+    def from_dict(cls, payload: Mapping) -> Probe:
         return cls(
             probe_id=payload["probe_id"],
             query=payload["query"],
@@ -309,7 +314,7 @@ class ProbeSet:
         return target
 
     @classmethod
-    def load(cls, path: str | pathlib.Path, *, validate_against: Iterable[str] | None = None) -> "ProbeSet":
+    def load(cls, path: str | pathlib.Path, *, validate_against: Iterable[str] | None = None) -> ProbeSet:
         path = pathlib.Path(path)
         payload = json.loads(path.read_text(encoding="utf-8"))
         probes = tuple(Probe.from_dict(p) for p in payload.get("probes", ()))

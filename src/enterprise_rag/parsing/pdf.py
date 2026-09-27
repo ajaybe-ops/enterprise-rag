@@ -1,7 +1,8 @@
 """Local PDF text extraction (pypdf, with a pdfplumber fallback)."""
 
-from enterprise_rag.observability import tracing as logfire  # vendor-free tracing shim
 from pypdf import PdfReader
+
+from enterprise_rag.observability import tracing as logfire  # vendor-free tracing shim
 
 
 def parse_pdf(file_path: str) -> str:

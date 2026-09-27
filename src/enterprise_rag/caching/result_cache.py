@@ -34,8 +34,8 @@ from __future__ import annotations
 
 import hashlib
 from collections import OrderedDict
+from collections.abc import Sequence
 from dataclasses import dataclass, field
-from typing import Sequence
 
 from enterprise_rag.types import Chunk
 
@@ -94,7 +94,7 @@ class ResultCache:
     max_entries: int = 256
     enabled: bool = True
     _manifest_id: str = ""
-    _entries: "OrderedDict[str, tuple[Chunk, ...]]" = field(default_factory=OrderedDict)
+    _entries: OrderedDict[str, tuple[Chunk, ...]] = field(default_factory=OrderedDict)
     stats: CacheStats = field(default_factory=CacheStats)
 
     def __post_init__(self) -> None:

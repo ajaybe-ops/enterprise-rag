@@ -10,7 +10,7 @@ directly.
 from __future__ import annotations
 
 import pathlib
-from typing import Annotated, Any
+from typing import Any
 
 from fastapi import APIRouter, Depends, HTTPException
 from fastapi.responses import PlainTextResponse
@@ -160,7 +160,7 @@ def rebuild_index(payload: IndexRequest) -> HealthResponse:
     """
     try:
         build_pipeline(get_settings(), pathlib.Path(payload.corpus_dir or get_settings().corpus_dir))
-    except Exception as exc:  # noqa: BLE001 - the reason is the useful part
+    except Exception as exc:
         raise HTTPException(status_code=503, detail=f"index rebuild failed: {exc}") from exc
     state.invalidate()
     return health()
@@ -249,8 +249,7 @@ def _prometheus(pipeline: Any) -> str:
         f"rag_rate_limit_clients {len(rate_limit_state())}",
         "# HELP rag_corpus_info Corpus identity currently served; always 1.",
         "# TYPE rag_corpus_info gauge",
-        'rag_corpus_info{manifest_id="%s",generator="%s"} 1'
-        % (pipeline.manifest_id, pipeline.generator.name),
+        f'rag_corpus_info{{manifest_id="{pipeline.manifest_id}",generator="{pipeline.generator.name}"}} 1',
     ]
     return "\n".join(lines) + "\n"
 

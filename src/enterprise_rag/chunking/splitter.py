@@ -22,8 +22,6 @@ boundary, which is crude but predictable and cannot loop.
 
 from __future__ import annotations
 
-from typing import List
-
 from enterprise_rag.observability import tracing as logfire  # vendor-free tracing shim
 
 __all__ = ["chunk_text"]
@@ -54,7 +52,7 @@ def _hard_split(paragraph: str, chunk_size: int) -> list[str]:
     return pieces
 
 
-def chunk_text(text: str, chunk_size: int = 1500, overlap: int = 0) -> List[str]:
+def chunk_text(text: str, chunk_size: int = 1500, overlap: int = 0) -> list[str]:
     """Split text into paragraph-aligned chunks no larger than `chunk_size`.
 
     `overlap` is the number of trailing characters of each chunk repeated at the

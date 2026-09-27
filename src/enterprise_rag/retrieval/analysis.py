@@ -9,7 +9,7 @@ dependency, not a feature.
 "monitor the status of a Kubernetes Job". A rewrite closes that gap. With no
 LLM, the fallback is a domain-synonym expansion table, applied as token
 substitution. That is weaker than an LLM rewrite and is not claimed to be
-equivalent â€” it exists so the offline path is not *zero* help.
+equivalent — it exists so the offline path is not *zero* help.
 
 **Multi-query.** Rather than betting everything on one phrasing, generate
 several and retrieve each, then fuse. The bet is that if one phrasing misses,
@@ -27,7 +27,7 @@ against the sparse side of the hybrid.
 from __future__ import annotations
 
 import re
-from typing import Sequence
+from collections.abc import Sequence
 
 from enterprise_rag.config.settings import Settings
 from enterprise_rag.text import analyze
@@ -67,7 +67,11 @@ _IDENTIFIER_RE = re.compile(
     | (?:\b[a-z]+\.[a-z0-9.]+\b)   # enterprise_rag.kubernetes.io
     | (?:\b[A-Z][a-z]+(?:[A-Z][a-z]+)+\b)  # HorizontalPodAutoscaler
     | (?:\bkubectl\s+[a-z]+\b)     # kubectl get
-    | (?:\b(?:minikube|etcd|kubelet|sidecar|StatefulSet|DaemonSet|CronJob|Deployment|Service|Ingress|PodDisruptionBudget|HorizontalPodAutoscaler|VerticalPodAutoscaler)\b)
+    | (?:\b(?:minikube|etcd|kubelet|sidecar
+              |StatefulSet|DaemonSet|CronJob
+              |Deployment|Service|Ingress
+              |PodDisruptionBudget
+              |HorizontalPodAutoscaler|VerticalPodAutoscaler)\b)
     """
 )
 
@@ -110,8 +114,12 @@ def _llm_rewrite(settings: Settings, question: str, history: str) -> str | None:
         f"Question: {question}\nQuery:"
     )
     try:
-        content, _usage = complete(settings, messages=[{"role": "user", "content": prompt}], feature="query_rewrite")
-    except Exception:  # noqa: BLE001 - a rewrite failure is not a request failure
+        content, _usage = complete(
+            settings,
+            messages=[{"role": "user", "content": prompt}],
+            feature="query_rewrite",
+        )
+    except Exception:
         return None
     cleaned = (content or "").strip().strip('"').splitlines()[0] if content else ""
     return cleaned[:300] or None

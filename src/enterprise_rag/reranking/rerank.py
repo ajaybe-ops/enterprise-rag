@@ -8,24 +8,24 @@ specificity are all lost in the embedding, and the model cannot attend to
 "this document answers *that* question" as a pair.
 
 A cross-encoder reads the query and the document together and scores the pair.
-Substantially more accurate, and far too slow to run against the whole corpus â€”
+Substantially more accurate, and far too slow to run against the whole corpus —
 so it runs on the top-`candidate_k` only, and the pipeline pays for the
 precision on a bounded workload.
 
 Three implementations, chosen by what is available:
 
-* `jina` â€” production. `jina-reranker-v2-base-multilingual` over the API.
-* `lexical_overlap` â€” offline. IDF-weighted query-term coverage. Genuinely
+* `jina` — production. `jina-reranker-v2-base-multilingual` over the API.
+* `lexical_overlap` — offline. IDF-weighted query-term coverage. Genuinely
   weaker than a cross-encoder, and reported as such: the benchmark labels which
   reranker produced a number so its results are never read as the neural
   reranker's results.
-* `none` â€” pass-through, still re-ranked and re-scored so downstream
+* `none` — pass-through, still re-ranked and re-scored so downstream
   confidence maths has a defined input.
 
 The invariant every implementation upholds: **the returned list is in reranked
 order, and each `Chunk` carries its own `rerank_score` and provenance.** The
 previous implementation returned bare strings and the caller re-derived order
-from a parallel structure, which discarded the ranking entirely â€” see
+from a parallel structure, which discarded the ranking entirely — see
 docs/AUDIT.md finding 1.
 """
 
@@ -34,13 +34,13 @@ from __future__ import annotations
 import math
 import time
 from collections import Counter
-from typing import Sequence
+from collections.abc import Sequence
 
 from enterprise_rag.config.settings import Settings
 from enterprise_rag.text import analyze
 from enterprise_rag.types import Chunk, renumber
 
-__all__ = ["rerank", "lexical_overlap_scores"]
+__all__ = ["lexical_overlap_scores", "rerank"]
 
 
 def lexical_overlap_scores(query: str, chunks: Sequence[Chunk]) -> list[float]:
@@ -56,7 +56,7 @@ def lexical_overlap_scores(query: str, chunks: Sequence[Chunk]) -> list[float]:
         return [0.0] * len(chunks)
 
     # IDF estimated from the candidate pool itself. Small pool, so these are
-    # noisy estimates â€” adequate for ranking, not for reporting.
+    # noisy estimates — adequate for ranking, not for reporting.
     doc_freq: Counter = Counter()
     per_doc: list[set[str]] = []
     for chunk in chunks:
@@ -137,7 +137,7 @@ def rerank(
             ranked = _jina_rerank(settings, query, chunks, top_n)
             if ranked:
                 return renumber(ranked[:top_n]), "jina", _ms(started)
-        except Exception:  # noqa: BLE001 - degrade, never fail the request
+        except Exception:
             # Fall through to the offline reranker rather than returning
             # unrereanked candidates under a "jina" label.
             pass
@@ -155,7 +155,7 @@ def rerank(
 
     scores = lexical_overlap_scores(query, chunks)
     ordered = sorted(
-        zip(chunks, scores), key=lambda pair: -pair[1]
+        zip(chunks, scores, strict=False), key=lambda pair: -pair[1]
     )[:top_n]
     return (
         renumber([c.with_scores(rerank_score=s) for c, s in ordered]),

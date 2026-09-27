@@ -21,10 +21,11 @@ returns, and the source always travels with the content it belongs to.
 from __future__ import annotations
 
 import hashlib
+from collections.abc import Iterable, Sequence
 from dataclasses import dataclass, field, replace
-from typing import Iterable, Literal, Sequence
+from typing import Literal
 
-__all__ = ["Chunk", "QueryAnalysis", "RetrievalResult", "Usage", "Answer"]
+__all__ = ["Answer", "Chunk", "QueryAnalysis", "RetrievalResult", "Usage"]
 
 RetrievalStrategy = Literal["bm25", "dense", "hybrid"]
 RerankStrategy = Literal["none", "jina", "lexical_overlap"]
@@ -38,7 +39,7 @@ def stable_chunk_id(source: str, ordinal: int, text: str) -> str:
     appending duplicates — which is what `--force` used to do.
     """
     digest = hashlib.sha256(text.encode("utf-8")).hexdigest()[:16]
-    return hashlib.sha256(f"{source}:{ordinal}:{digest}".encode("utf-8")).hexdigest()[:32]
+    return hashlib.sha256(f"{source}:{ordinal}:{digest}".encode()).hexdigest()[:32]
 
 
 @dataclass(frozen=True, slots=True)
@@ -78,7 +79,7 @@ class Chunk:
         source_type: str = "true",
         char_start: int = 0,
         **metadata: str,
-    ) -> "Chunk":
+    ) -> Chunk:
         return cls(
             chunk_id=stable_chunk_id(source, ordinal, text),
             text=text,
@@ -93,7 +94,7 @@ class Chunk:
     def citation_label(self) -> str:
         return self.source
 
-    def with_scores(self, **kwargs) -> "Chunk":
+    def with_scores(self, **kwargs) -> Chunk:
         return replace(self, **kwargs)
 
     def to_payload(self) -> dict:
@@ -223,7 +224,7 @@ class Usage:
     def total_tokens(self) -> int:
         return self.prompt_tokens + self.completion_tokens
 
-    def __add__(self, other: "Usage") -> "Usage":
+    def __add__(self, other: Usage) -> Usage:
         return Usage(
             model=self.model or other.model,
             prompt_tokens=self.prompt_tokens + other.prompt_tokens,

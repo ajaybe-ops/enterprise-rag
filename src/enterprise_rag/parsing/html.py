@@ -1,14 +1,17 @@
 """HTML text extraction with BeautifulSoup."""
 
-from enterprise_rag.observability import tracing as logfire  # vendor-free tracing shim
+from pathlib import Path
+
 from bs4 import BeautifulSoup
+
+from enterprise_rag.observability import tracing as logfire  # vendor-free tracing shim
 
 
 def parse_html(file_path: str) -> str:
     """Strip scripts/styles/metadata and return readable text."""
     with logfire.span("📄 HTML Parsing", filename=file_path):
         try:
-            with open(file_path, "r", encoding="utf-8", errors="ignore") as handle:
+            with Path(file_path).open(encoding="utf-8", errors="ignore") as handle:
                 content = handle.read()
 
             soup = BeautifulSoup(content, "html.parser")

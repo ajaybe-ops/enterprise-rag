@@ -10,11 +10,11 @@ model, done. But the quality of that bet varies enormously across queries, and
 nothing in a conventional pipeline knows which bet it made. Worse, the failure is
 *asymmetric*:
 
-* **False confidence** â€” the retrieved chunks look plausible but none of them
+* **False confidence** — the retrieved chunks look plausible but none of them
   answers the question. The model, having been handed five irrelevant passages
   and told to answer from them, will either hallucinate or produce a
   confidently-shaped non-answer. This is the expensive failure.
-* **Honest abstention** â€” the pipeline recognises thin evidence and declines.
+* **Honest abstention** — the pipeline recognises thin evidence and declines.
   The user gets a worse answer than a lucky retrieval would have given, and
   costs nothing but the abstention itself.
 
@@ -26,23 +26,23 @@ The confidence signal
 Three signals, each chosen because it fails in a *different* way, so their
 disagreement is itself informative:
 
-1. **`top_score`** â€” the reranker's score for the best chunk. Absolute quality
+1. **`top_score`** — the reranker's score for the best chunk. Absolute quality
    of the single best piece of evidence. Blind to whether the *rest* of the
    evidence is related.
 
-2. **`margin`** â€” `(top - second) / top`. A high margin means one chunk clearly
+2. **`margin`** — `(top - second) / top`. A high margin means one chunk clearly
    dominates. A margin near zero means five chunks are equally mediocre, which
    is the signature of a query the retriever did not understand. This is the
    signal that catches "relevant-looking but wrong", which `top_score` misses
    whenever the reranker is over-confident.
 
-3. **`agreement`** â€” overlap between the sparse and dense rankings. When both
+3. **`agreement`** — overlap between the sparse and dense rankings. When both
    retrievers independently surface the same documents, the evidence is
    corroborated by two different failure modes. When they disagree completely,
    at least one of them is operating outside its competence on this query, and
    that is worth knowing before trusting the union.
 
-4. **`coverage`** â€” what fraction of the query's content words actually appear
+4. **`coverage`** — what fraction of the query's content words actually appear
    in the evidence. The first three signals are all *relative*: they compare
    chunks against each other, so a query with nothing to do with the corpus
    still produces a ranking, still produces scores, and still looks internally
@@ -54,7 +54,7 @@ disagreement is itself informative:
 
 Fusing them multiplicatively rather than by averaging is deliberate. Confidence
 that one signal is high should not paper over another being low: an average
-lets a strong `top_score` compensate for `margin â‰ˆ 0`, which is exactly the
+lets a strong `top_score` compensate for `margin ≈ 0`, which is exactly the
 false-confidence case this is trying to prevent. A product stays low if any
 factor is low, so a query that is topically fine but ambiguous overall still
 escalates.
@@ -86,7 +86,7 @@ What has actually been measured here
 `scripts/probe_confidence_separation.py` runs four in-domain and four
 off-domain questions against the 16-chunk corpus. With `coverage` included, the
 in-domain scores span 0.26-0.39 and the off-domain span 0.07-0.25, so the two
-groups separate â€” but the margin between the worst in-domain question and the
+groups separate — but the margin between the worst in-domain question and the
 best off-domain one is about **0.01**, on a sample of eight hand-picked
 questions.
 
@@ -100,13 +100,20 @@ an abstention quality figure.
 
 from __future__ import annotations
 
+import itertools
+from collections.abc import Sequence
 from dataclasses import dataclass
-from typing import Sequence
 
 from enterprise_rag.text import analyze
 from enterprise_rag.types import Chunk, RetrievalResult
 
-__all__ = ["ConfidenceSignals", "estimate_confidence", "should_escalate", "should_abstain", "calibration_curve"]
+__all__ = [
+    "ConfidenceSignals",
+    "calibration_curve",
+    "estimate_confidence",
+    "should_abstain",
+    "should_escalate",
+]
 
 # Weight each signal's shortfall by how much it should be able to veto. The
 # strongest veto goes to margin, because margin is the signal that catches the
@@ -133,7 +140,7 @@ _MIN_COVERAGE_TERMS = 2
 # amount, which was not enough: measured against a hand-picked probe set, a
 # "how do I train for a marathon" query still outscored a genuine in-domain
 # question. Quadratic falloff below the floor encodes the real shape of the
-# signal â€” absent content words are not a partial deduction.
+# signal — absent content words are not a partial deduction.
 _COVERAGE_FLOOR = 0.5
 
 
@@ -216,7 +223,7 @@ def _query_coverage(query: str, reranked: Sequence[Chunk], depth: int = 5) -> fl
     Best-of-`depth` rather than pooled across all evidence: a corpus can
     contain every word of a question in five different documents and still not
     answer it, so pooling would score topical adjacency as coverage. Scoring the
-    best single chunk asks the question that actually matters â€” "is there one
+    best single chunk asks the question that actually matters — "is there one
     piece of evidence this query is about?".
 
     Terms are stemmed so `restarting` matches `restart`, and duplicates are
@@ -268,7 +275,7 @@ def estimate_confidence(
             margin = (ordered[0] - second) / ordered[0] if ordered[0] > 0 else 0.0
         else:
             # A single candidate cannot be distinguished from the void. Cap
-            # rather than default to 1.0 â€” one chunk is not strong evidence.
+            # rather than default to 1.0 — one chunk is not strong evidence.
             margin = 0.5
     else:
         top_signal, margin = 0.0, 0.0
@@ -295,7 +302,12 @@ def estimate_confidence(
     )
 
 
-def should_escalate(signals: ConfidenceSignals, threshold: float, escalations: int, max_escalations: int) -> bool:
+def should_escalate(
+    signals: ConfidenceSignals,
+    threshold: float,
+    escalations: int,
+    max_escalations: int,
+) -> bool:
     return escalations < max_escalations and signals.confidence < threshold
 
 
@@ -319,7 +331,7 @@ def calibration_curve(
         return []
     edges = [i / buckets for i in range(buckets + 1)]
     out: list[dict[str, float]] = []
-    for low, high in zip(edges, edges[1:]):
+    for low, high in itertools.pairwise(edges):
         members = [r for r in results if low <= r.confidence < high or (high == 1.0 and r.confidence == 1.0)]
         if not members:
             continue

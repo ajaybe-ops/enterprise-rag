@@ -75,7 +75,7 @@ class ServiceState:
                 self._degradations = degradations
                 self._error = None
                 self._built_at = time.time()
-            except Exception as error:  # noqa: BLE001 - reported via /health
+            except Exception as error:
                 self._error = f"{type(error).__name__}: {error}"
                 tracing.error(
                     "index build failed", error=self._error, corpus_dir=str(root or "<unset>")

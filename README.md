@@ -39,7 +39,7 @@ report says so.
 ## Quick start
 
 ```bash
-pip install -r requirements.txt -r requirements-dev.txt
+uv sync --extra dev
 
 # 1. Generate a seeded corpus and its probe suite (reproducible byte-for-byte)
 python scripts/generate_corpus.py
@@ -170,7 +170,7 @@ required an OpenTelemetry SDK and a hosted exporter account before the test
 suite could run, and emitted a warning on every import of an unrelated module —
 a warning that trains people to ignore warnings.
 
-`requirements.txt` lists 11 packages, derived from the actual import surface.
+`pyproject.toml` lists the runtime dependencies, derived from the actual import surface, and `uv.lock` pins the exact versions the reported numbers were produced with.
 It previously listed 25, of which 14 were unreachable from any import.
 
 ---

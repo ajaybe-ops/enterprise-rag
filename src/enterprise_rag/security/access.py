@@ -26,15 +26,15 @@ survives review, because the citation is real.
 
 from __future__ import annotations
 
+from collections.abc import Mapping, Sequence
 from dataclasses import dataclass, field
-from typing import Iterable, Mapping, Sequence
 
 __all__ = [
     "AccessDecision",
+    "AuthorisationOutcome",
     "Principal",
     "authorise",
     "filter_candidates",
-    "AuthorisationOutcome",
 ]
 
 
@@ -55,7 +55,7 @@ class Principal:
     authenticated: bool = True
 
     @classmethod
-    def anonymous(cls) -> "Principal":
+    def anonymous(cls) -> Principal:
         return cls(subject="anonymous", tenants=frozenset(), roles=frozenset(), authenticated=False)
 
     def may_read(self, tenant: str | None) -> bool:
@@ -201,9 +201,9 @@ def authorise(
             evidence_withheld_at_rank=withheld_at_rank,
             should_refuse=True,
             reason=(
-                f"the highest-ranked evidence for this query is restricted to the "
-                f"caller's tenant(s); answering from a lower-ranked document would "
-                f"substitute a weaker source for the real one"
+                "the highest-ranked evidence for this query is restricted to the "
+                "caller's tenant(s); answering from a lower-ranked document would "
+                "substitute a weaker source for the real one"
             ),
         )
 

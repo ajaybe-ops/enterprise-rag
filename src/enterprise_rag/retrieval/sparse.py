@@ -20,9 +20,9 @@ Standard Robertson/Sparck-Jones IDF with the usual epsilon smoothing:
 
     IDF(t) = ln( 1 + (N - n_t + 0.5) / (n_t + 0.5) )
 
-    score(q, d) = Î£_{tâˆˆq}  IDF(t) Â· ( f(t,d)Â·(k1+1) )
-                                 â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
-                                 f(t,d) + k1Â·(1 - b + bÂ·|d|/avgdl)
+    score(q, d) = Σ_{t∈q}  IDF(t) · ( f(t,d)·(k1+1) )
+                                 ─────────────────────────────────
+                                 f(t,d) + k1·(1 - b + b·|d|/avgdl)
 
 Smoothing matters. The unsmoothed `ln((N - n_t + 0.5)/(n_t + 0.5))` goes negative
 for terms appearing in more than half the documents, so a *very* common term
@@ -44,8 +44,8 @@ from __future__ import annotations
 
 import math
 from collections import Counter
+from collections.abc import Iterable, Sequence
 from dataclasses import dataclass, field
-from typing import Iterable, Sequence
 
 from enterprise_rag.text import analyze
 from enterprise_rag.types import Chunk
@@ -71,7 +71,7 @@ class BM25Index:
     # a required __init__ argument, so declaring them bare made
     # `BM25Index(chunks=..., k1=..., b=...)` fail with "missing 5 required
     # positional arguments" and __post_init__ unreachable. Sparse retrieval was
-    # therefore not merely untested â€” it was unconstructible.
+    # therefore not merely untested — it was unconstructible.
     _term_freqs: tuple[Counter, ...] = ()
     _doc_freqs: dict[str, int] = field(default_factory=dict)
     _doc_lens: tuple[int, ...] = ()
@@ -133,7 +133,7 @@ class BM25Index:
         k1, b, avgdl = self.k1, self.b, self._avgdl
 
         results: list[float] = []
-        for freqs, doc_len in zip(self._term_freqs, self._doc_lens):
+        for freqs, doc_len in zip(self._term_freqs, self._doc_lens, strict=False):
             score = 0.0
             # Length normalisation factor is per-document, hoisted out of the
             # term loop. In the inner loop it would be recomputed for every term.
@@ -217,7 +217,7 @@ def bm25_scores(
 
     query_freqs = Counter(analyze(query))
     out: list[float] = []
-    for freqs, doc_len in zip(term_freqs, doc_lens):
+    for freqs, doc_len in zip(term_freqs, doc_lens, strict=False):
         norm = 1.0 - b + b * (doc_len / avgdl if avgdl else 1.0)
         score = 0.0
         for term, q_count in query_freqs.items():

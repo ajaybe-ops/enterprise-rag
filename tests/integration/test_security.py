@@ -11,12 +11,10 @@ from __future__ import annotations
 import sys
 from pathlib import Path
 
-import pytest
-
 sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
 
 from enterprise_rag.security.access import Principal, authorise, filter_candidates
-from enterprise_rag.security.injection import scan, sanitize_for_context
+from enterprise_rag.security.injection import sanitize_for_context, scan
 from enterprise_rag.types import Chunk
 
 

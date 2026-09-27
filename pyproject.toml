@@ -1,0 +1,198 @@
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[project]
+name = "enterprise-rag"
+version = "0.1.0"
+description = "Auditable hybrid-retrieval RAG with a reproducible evidence-contract evaluation suite"
+readme = "README.md"
+requires-python = ">=3.11"
+license = { file = "LICENSE" }
+keywords = ["rag", "retrieval", "bm25", "hybrid-search", "evaluation", "provenance"]
+classifiers = [
+  "Development Status :: 4 - Beta",
+  "Intended Audience :: Developers",
+  "Programming Language :: Python :: 3.11",
+  "Programming Language :: Python :: 3.12",
+  "Topic :: Text Processing :: Indexing",
+  "Typing :: Typed",
+]
+
+# Runtime dependencies are derived from the actual import surface, not from what
+# the project once hoped to become. The reference build runs offline: retrieval
+# is BM25 plus an `numpy` LSA projection, and generation is deterministic
+# extraction, so nothing here requires an account, a network call or a GPU.
+dependencies = [
+  "fastapi>=0.110",
+  "uvicorn[standard]>=0.27",
+  "pydantic>=2.6",
+  "python-dotenv>=1.0",
+  # HTTP client for the optional hosted endpoints. `requests` rather than an SDK:
+  # both optional providers speak plain JSON over POST, so a vendor SDK would add
+  # a dependency and a version constraint without adding capability.
+  "requests>=2.31",
+  # Offline dense leg. Sole non-stdlib numeric dependency.
+  "numpy>=1.24",
+  # Parsing. All local: a PDF with no text layer yields no text rather than
+  # silently costing an OCR API call.
+  "pypdf>=4.0",
+  "pdfplumber>=0.11",
+  "beautifulsoup4>=4.12",
+  "python-docx>=1.1",
+  "python-pptx>=0.6",
+]
+
+[project.optional-dependencies]
+# A hosted ANN index instead of the in-process one. The Qdrant path filters on
+# `source_type` inside the store's filter clause, whereas the in-process
+# retriever filters by tenant and status in Python. Those are not equivalent, so
+# switching stores is a security-relevant change: re-run the authorization
+# probes, not just the ranking ones.
+qdrant = ["qdrant-client>=1.9"]
+# Replaces the LSA fallback with real local sentence embeddings. Not installed
+# by default: it is a multi-hundred-megabyte download that pins a torch version,
+# which makes numpy resolution painful in some environments. Local embeddings
+# are also deterministic only for a fixed model version -- record the version in
+# the manifest if you enable them.
+local-embeddings = ["sentence-transformers>=2.7", "torch>=2.2"]
+dev = [
+  "pytest>=8.0",
+  "pytest-cov>=5.0",
+  "ruff>=0.5",
+  "mypy>=1.10",
+  # `httpx2`, not `httpx`: starlette's TestClient deprecated the latter and
+  # warns on import when only it is present. With `filterwarnings = ["error"]`
+  # in this file's pytest config, that warning becomes a hard error during
+  # collection, so the suite failed at fixture setup rather than on an assertion.
+  # Naming the supported client keeps the strict warning filter and a green run
+  # at the same time, which is the point of the strict filter.
+  "httpx2>=2.13",
+]
+
+[project.urls]
+Repository = "https://github.com/ajaybe-ops/ajaybe-ops.github.io"
+Issues = "https://github.com/ajaybe-ops/ajaybe-ops.github.io/issues"
+
+[project.scripts]
+enterprise-rag = "enterprise_rag.cli:main"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/enterprise_rag"]
+
+[tool.pytest.ini_options]
+minversion = "8.0"
+testpaths = ["tests"]
+addopts = "-ra --strict-markers --strict-config"
+# `-p no:randomly` is deliberately absent: test order independence is asserted
+# rather than enforced by disabling a plugin that would check it.
+filterwarnings = ["error"]
+markers = [
+  "slow: takes more than a couple of seconds",
+  "network: requires outbound network access; deselected by default",
+]
+
+[tool.ruff]
+# 110 rather than the more common 88 or 100. This codebase is unusually
+# comment-dense: the retrieval, confidence and evaluation modules carry the
+# reasoning for their constants and thresholds inline, and those explanations
+# are the point rather than noise. At 100 the lint reported 67 violations, so
+# the options were 67 suppressions or a limit that matches the code. Everything
+# over 110 is fixed rather than ignored.
+line-length = 110
+target-version = "py311"
+src = ["src", "tests", "scripts"]
+
+[tool.ruff.lint]
+select = [
+  "E",    # pycodestyle
+  "W",    # warnings
+  "F",    # pyflakes
+  "I",    # import sorting
+  "N",    # pep8-naming
+  "UP",   # pyupgrade
+  "B",    # bugbear
+  "C4",   # comprehensions
+  "SIM",  # simplify
+  "RET",  # return simplification
+  "PTH",  # prefer pathlib
+  "ARG",  # unused arguments
+  "RUF",
+]
+ignore = [
+  # The corpus is small and the test suite is fast; asserting on private state
+  # is occasionally the only way to pin a bug, and the tests say so when they
+  # do it.
+  "SLF001",
+  # `datetime.utcnow()` is deprecated in favour of `datetime.now(UTC)`, but the
+  # codebase uses `datetime.now(timezone.utc)` throughout, which ruff accepts.
+  "UP017",
+  # SIM905 rewrites the closed word lists -- stopwords, allowed function words,
+  # Kubernetes kinds -- from a wrapped triple-quoted string into a single list
+  # literal. For a stopword list that is strictly worse to read: the wrapped form
+  # shows the vocabulary and its rough frequencies at a glance, and the
+  # rewritten form is a 665-character line. The auto-fix was applied once and
+  # reverted; this keeps it from being reapplied.
+  "SIM905",
+  # SIM108 turns every `if cond: x = a else: x = b` into a ternary. In
+  # `capabilities()` the if/else form is five consecutive lines that each report
+  # a different capability, and reads as a table; a run of ternaries does not.
+  # SIM103 has the same problem in reverse.
+  "SIM108",
+  "SIM103",
+  # N818 wants every exception class suffixed `Error`. `LLMUnavailable` and
+  # `ServiceUnavailable` are the established spellings in this domain and match
+  # the FastAPI/Starlette vocabulary the API layer already speaks; renaming them
+  # to `...Error` would make them read as a different concept from the HTTP
+  # 503 they produce.
+  "N818",
+]
+
+[tool.ruff.lint.per-file-ignores]
+# Tests may use private helpers, assert on internals, and shadow names on
+# purpose.
+"tests/**" = ["ARG001", "ARG002", "N806", "B011", "SIM117"]
+# Scripts are thin argument-parsing wrappers.
+"scripts/**" = ["T201"]
+# This test exists to hold real mojibake samples -- the exact `â` `†` `’`
+# sequences a cp1252 mis-decode produces -- both in its docstring and as
+# constructed fixtures. RUF001/RUF002 flag those characters precisely because
+# they are visually confusable, which is true and is the point here. A per-file
+# ignore is the only option that works at all: a `# noqa` cannot be placed
+# inside a docstring without becoming part of its text.
+"tests/unit/test_source_encoding.py" = ["RUF001", "RUF002"]
+
+[tool.ruff.lint.isort]
+known-first-party = ["enterprise_rag"]
+
+[tool.mypy]
+# 3.12, while the package floor stays 3.11. numpy 2.5's bundled stubs use PEP
+# 695 `type` statements, which are a hard syntax error for a mypy run targeting
+# 3.11 -- the stubs are 3.12-only even though numpy's runtime is not. Type
+# checking therefore runs at the version whose stubs can be parsed, and the
+# 3.11 floor is enforced where it actually matters: by the test matrix and the
+# Docker base image, which run the real interpreter rather than analysing it.
+python_version = "3.12"
+files = ["src/enterprise_rag"]
+# Third-party stubs for FastAPI/pydantic are incomplete; untyped defs are
+# allowed only where an annotation would be a guess.
+disallow_untyped_defs = true
+disallow_incomplete_defs = true
+warn_return_any = true
+warn_unused_ignores = false
+[[tool.mypy.overrides]]
+module = ["pypdf.*", "pdfplumber.*", "qdrant_client.*"]
+ignore_missing_imports = true
+
+[tool.coverage.run]
+source = ["src/enterprise_rag"]
+branch = true
+
+[tool.coverage.report]
+# A coverage number is not a goal; the two exclusions below are the two places
+# where asserting coverage would mean writing a test that proves nothing.
+exclude_also = [
+  "if TYPE_CHECKING:",
+  "raise NotImplementedError",
+  "if __name__ == .__main__.:",
+]

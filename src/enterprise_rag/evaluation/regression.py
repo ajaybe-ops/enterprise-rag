@@ -34,23 +34,18 @@ is not possible the verdict is `unattributed`.
 from __future__ import annotations
 
 import os
+from collections.abc import Mapping
 from dataclasses import dataclass, field
-from typing import Literal, Mapping, Sequence
+from typing import Literal
 
-from enterprise_rag.indexing.manifest import CorpusManifest, ManifestDiff
-from enterprise_rag.evaluation.metrics import (
-    first_required_rank,
-    ndcg_at_k,
-    recall_at_k,
-    reciprocal_rank,
-)
 from enterprise_rag.evaluation.probe import Probe, ProbeSet
 from enterprise_rag.evaluation.runner import RunReport
+from enterprise_rag.indexing.manifest import CorpusManifest, ManifestDiff
 
 __all__ = [
+    "Attribution",
     "Cause",
     "ProbeRegression",
-    "Attribution",
     "RegressionReport",
     "attribute",
     "compare",
@@ -271,7 +266,10 @@ class RegressionReport:
             ]
 
         if self.metric_deltas:
-            lines += ["| metric | baseline | candidate | delta | regressed |", "| --- | --- | --- | --- | --- |"]
+            lines += [
+                "| metric | baseline | candidate | delta | regressed |",
+                "| --- | --- | --- | --- | --- |",
+            ]
             lines += [
                 f"| {d.name} | {d.baseline:.4f} | {d.candidate:.4f} | {d.delta:+.4f} | "
                 f"{'YES' if d.regressed else 'no'} |"
@@ -281,7 +279,11 @@ class RegressionReport:
 
         if self.manifest_diff and not self.manifest_diff.is_empty:
             lines += [f"Corpus: {self.manifest_diff.summary()}", ""]
-            for change in (*self.manifest_diff.added, *self.manifest_diff.removed, *self.manifest_diff.modified):
+            for change in (
+                *self.manifest_diff.added,
+                *self.manifest_diff.removed,
+                *self.manifest_diff.modified,
+            ):
                 lines.append(f"- {change.explain()}")
             lines.append("")
 
@@ -500,7 +502,11 @@ def _attribute_probe(
                 summary="no recorded change explains this regression",
                 confidence=0.0,
                 evidence=(
-                    "corpus manifest unchanged" if diff is None or diff.is_empty else "corpus changed, but not in a way that touches this probe",
+                    (
+                        "corpus manifest unchanged"
+                        if diff is None or diff.is_empty
+                        else "corpus changed, but not in a way that touches this probe"
+                    ),
                     "configuration unchanged" if not config_changed else "configuration changed",
                     "the pipeline itself is the remaining suspect",
                 ),
@@ -553,7 +559,10 @@ def attribute(
         )
         evidence.append("re-run both runs against a single probe set before comparing")
     elif corpus_changed and config_changed:
-        verdict, summary = "corpus_edit", "both the corpus and the configuration changed; isolate them before acting"
+        verdict, summary = (
+            "corpus_edit",
+            "both the corpus and the configuration changed; isolate them before acting",
+        )
         evidence.append(f"corpus: {diff.summary()}")
         evidence.append("config fingerprints differ")
     elif corpus_changed:

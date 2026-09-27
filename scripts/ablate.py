@@ -37,14 +37,18 @@ import sys
 
 sys.path.insert(0, str(pathlib.Path(__file__).resolve().parents[1]))
 
-from enterprise_rag.config.settings import Settings  # noqa: E402
-from enterprise_rag.indexing.manifest import attach_chunks, build_manifest  # noqa: E402
-from enterprise_rag.evaluation.probe import ProbeSet  # noqa: E402
-from enterprise_rag.evaluation.runner import RetrievalExecutor, config_fingerprint, run_probe_set  # noqa: E402
-from enterprise_rag.indexing.corpus import load_corpus  # noqa: E402
-from enterprise_rag.pipelines.retrieval import HybridRetriever, build_retrievers  # noqa: E402
-from enterprise_rag.retrieval.status import StatusPolicy  # noqa: E402
-from scripts.evaluate import assemble_context  # noqa: E402
+from scripts.evaluate import assemble_context
+
+from enterprise_rag.config.settings import Settings
+from enterprise_rag.evaluation.probe import ProbeSet
+from enterprise_rag.evaluation.runner import (
+    RetrievalExecutor,
+    config_fingerprint,
+    run_probe_set,
+)
+from enterprise_rag.indexing.corpus import load_corpus
+from enterprise_rag.indexing.manifest import attach_chunks, build_manifest
+from enterprise_rag.pipelines.retrieval import HybridRetriever, build_retrievers
 
 
 @dataclasses.dataclass(frozen=True)
@@ -81,7 +85,12 @@ def build(settings: Settings, corpus, variant: Variant) -> HybridRetriever:
 
 
 def main() -> int:
-    parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
+    # RawDescriptionHelpFormatter so the module docstring -- which is the
+    # usage documentation -- stays readable instead of being reflowed.
+    parser = argparse.ArgumentParser(
+        description=__doc__,
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+    )
     parser.add_argument("--corpus", required=True)
     parser.add_argument("--probes", required=True)
     parser.add_argument("--out", default="runs/ablations.json")
@@ -104,7 +113,13 @@ def main() -> int:
     baseline_aggregate = None
     for variant in variants:
         settings = (
-            dataclasses.replace(base_settings, retrieval=dataclasses.replace(base_settings.retrieval, **variant.overrides))
+            dataclasses.replace(
+                base_settings,
+                retrieval=dataclasses.replace(
+                    base_settings.retrieval,
+                    **variant.overrides,
+                ),
+            )
             if variant.overrides
             else base_settings
         )

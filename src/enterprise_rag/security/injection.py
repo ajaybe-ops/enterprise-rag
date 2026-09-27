@@ -43,17 +43,17 @@ least makes attempts *visible* instead of silent.
 from __future__ import annotations
 
 import re
-from dataclasses import dataclass, field
-from typing import Sequence
+from collections.abc import Sequence
+from dataclasses import dataclass
 
 __all__ = [
+    "CONTEXT_CLOSE",
+    "CONTEXT_OPEN",
+    "PATTERNS",
     "InjectionFinding",
     "InjectionReport",
-    "scan",
     "sanitize_for_context",
-    "CONTEXT_OPEN",
-    "CONTEXT_CLOSE",
-    "PATTERNS",
+    "scan",
 ]
 
 # The citation wrapper. A unique, non-natural delimiter matters: the goal is that

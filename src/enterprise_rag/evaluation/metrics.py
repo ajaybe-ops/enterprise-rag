@@ -25,25 +25,25 @@ from __future__ import annotations
 
 import math
 import re
+from collections.abc import Iterable, Sequence
 from dataclasses import dataclass
-from typing import Iterable, Sequence
 
 from enterprise_rag.evaluation.probe import Probe, ProbeOutcome
 
 __all__ = [
     "AggregateReport",
-    "evaluate_probe",
     "aggregate",
-    "source_recall",
-    "recall_at_k",
     "context_precision",
-    "reciprocal_rank",
-    "ndcg_at_k",
+    "evaluate_probe",
     "fact_coverage",
-    "leakage",
     "first_required_rank",
-    "precedence_satisfied",
+    "leakage",
+    "ndcg_at_k",
     "normalise",
+    "precedence_satisfied",
+    "recall_at_k",
+    "reciprocal_rank",
+    "source_recall",
 ]
 
 _WS = re.compile(r"\s+")
@@ -357,7 +357,12 @@ def _percentile(values: Sequence[float], fraction: float) -> float:
     return ordered[index]
 
 
-def aggregate(outcomes: Sequence[ProbeOutcome], probes: Sequence[Probe] = (), *, k: int = 5) -> AggregateReport:
+def aggregate(
+    outcomes: Sequence[ProbeOutcome],
+    probes: Sequence[Probe] = (),
+    *,
+    k: int = 5,
+) -> AggregateReport:
     """Reduce per-probe outcomes to suite metrics.
 
     An empty suite returns zeros rather than raising. A run that measured nothing
@@ -395,11 +400,11 @@ def aggregate(outcomes: Sequence[ProbeOutcome], probes: Sequence[Probe] = (), *,
             "pass_rate": sum(1 for o in group if o.passed) / len(group),
             "recall_at_k": sum(
                 recall_at_k(o.retrieved_sources, p.must_retrieve, k)
-                for o, p in zip(group, group_probes)
+                for o, p in zip(group, group_probes, strict=False)
             ) / len(group) if len(group_probes) == len(group) else 0.0,
             "fact_coverage": sum(
                 fact_coverage(o.context_text, p.must_contain)
-                for o, p in zip(group, group_probes)
+                for o, p in zip(group, group_probes, strict=False)
             ) / len(group) if len(group_probes) == len(group) else 0.0,
             "authz_violations": float(sum(1 for o in group if o.authz_violation)),
             "preference_violations": float(sum(1 for o in group if o.preference_violation)),

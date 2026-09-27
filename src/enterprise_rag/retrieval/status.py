@@ -56,10 +56,10 @@ at the document half of that pair is going to be wrong about some queries.
 from __future__ import annotations
 
 import re
+from collections.abc import Iterable
 from dataclasses import dataclass
-from typing import Iterable, Sequence
 
-__all__ = ["StatusPolicy", "DEFAULT_SUPERSEDED", "DEFAULT_DEMOTED", "PRELIMINARY_INTENT"]
+__all__ = ["DEFAULT_DEMOTED", "DEFAULT_SUPERSEDED", "PRELIMINARY_INTENT", "StatusPolicy"]
 
 # Statuses whose content is known to be wrong for present-tense questions.
 DEFAULT_SUPERSEDED: tuple[str, ...] = ("superseded", "retired", "archived", "deprecated")
@@ -109,7 +109,7 @@ class StatusPolicy:
             raise ValueError(f"demotion must be in (0, 1], got {self.demotion}")
 
     @classmethod
-    def from_settings(cls, settings: object) -> "StatusPolicy":
+    def from_settings(cls, settings: object) -> StatusPolicy:
         retrieval = getattr(settings, "retrieval", None)
         return cls(
             superseded=frozenset(

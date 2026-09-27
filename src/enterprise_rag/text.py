@@ -14,10 +14,11 @@ exact-match recall on flags gets worse, not better.
 
 from __future__ import annotations
 
+import itertools
 import re
 from functools import lru_cache
 
-__all__ = ["STOPWORDS", "normalize", "tokenize", "stem", "analyze", "bigrams"]
+__all__ = ["STOPWORDS", "analyze", "bigrams", "normalize", "stem", "tokenize"]
 
 # Deliberately small. A large stopword list hurts a technical corpus: "no",
 # "not" and "can" carry meaning in troubleshooting text, and "all"/"only" are
@@ -86,7 +87,7 @@ def stem(token: str) -> str:
     if token.endswith("ing") and len(token) > 5:
         base = token[:-3]
         # "monitoring" -> "monitor", but "sting" -> "sting" (no real base)
-        return base if len(base) >= 3 and base[-1] not in "aeiou" or base.endswith("at") else token
+        return base if (len(base) >= 3 and base[-1] not in "aeiou") or base.endswith("at") else token
     if token.endswith("ed") and len(token) > 4:
         base = token[:-2]
         if len(base) >= 3 and base[-1] not in "aeiou":
@@ -105,4 +106,4 @@ def analyze(text: str, *, stem_tokens: bool = True, keep_stopwords: bool = False
 
 def bigrams(tokens: list[str]) -> list[str]:
     """Adjacent token pairs, for phrase-ish matching and query features."""
-    return [f"{a}_{b}" for a, b in zip(tokens, tokens[1:])]
+    return [f"{a}_{b}" for a, b in itertools.pairwise(tokens)]

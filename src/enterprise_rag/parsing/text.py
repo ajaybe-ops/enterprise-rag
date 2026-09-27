@@ -1,15 +1,17 @@
 """Plain-text loader."""
 
+from pathlib import Path
+
 from enterprise_rag.observability import tracing as logfire  # vendor-free tracing shim
 
 
 def parse_text(file_path: str) -> str:
     """Read a text file, trying UTF-8 first and falling back to Latin-1."""
-    with logfire.span("📄 Text Parsing", filename=file_path):
+    with logfire.span("→ Text Parsing", filename=file_path):
         try:
             for encoding in ("utf-8", "latin-1"):
                 try:
-                    with open(file_path, "r", encoding=encoding) as handle:
+                    with Path(file_path).open(encoding=encoding) as handle:
                         text = handle.read()
                     logfire.info(f"Read {len(text)} characters ({encoding}).")
                     return text

@@ -27,8 +27,8 @@ nothing, and those two failures need opposite fixes.
 
 from __future__ import annotations
 
+from collections.abc import Sequence
 from dataclasses import dataclass, field
-from typing import Sequence
 
 from enterprise_rag.security.injection import (
     InjectionReport,
@@ -37,7 +37,7 @@ from enterprise_rag.security.injection import (
 )
 from enterprise_rag.types import Chunk
 
-__all__ = ["ContextBlock", "build_context", "format_messages", "DEFAULT_INSTRUCTIONS"]
+__all__ = ["DEFAULT_INSTRUCTIONS", "ContextBlock", "build_context", "format_messages"]
 
 DEFAULT_INSTRUCTIONS = (
     "Answer only from the evidence below. If the evidence does not contain the "

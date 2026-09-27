@@ -14,15 +14,14 @@ stable-ID assignment slightly differently.
 from __future__ import annotations
 
 import pathlib
+from collections.abc import Iterable, Sequence
 from dataclasses import dataclass
-from typing import Iterable, Sequence
 
-from enterprise_rag.config.settings import Settings
-from enterprise_rag.indexing.manifest import parse_front_matter
 from enterprise_rag.chunking.splitter import chunk_text
+from enterprise_rag.indexing.manifest import parse_front_matter
 from enterprise_rag.types import Chunk, stable_chunk_id
 
-__all__ = ["Corpus", "load_corpus", "SOURCE_EXTENSIONS"]
+__all__ = ["SOURCE_EXTENSIONS", "Corpus", "load_corpus"]
 
 SOURCE_EXTENSIONS = (".md", ".markdown", ".txt", ".rst")
 
@@ -48,13 +47,13 @@ class Corpus:
     def __iter__(self):
         return iter(self.chunks)
 
-    def scoped(self, allowed: Sequence[str] | None = None) -> "Corpus":
+    def scoped(self, allowed: Sequence[str] | None = None) -> Corpus:
         """Restrict to a set of `source_type` values.
 
         The scope filter is applied at *retrieval* time as well as here, because
         a Qdrant-backed deployment can only filter by a payload index, not by
         post-filtering in Python. Doing it in both places keeps the in-memory
-        benchmark path and the production path semantically identical â€” if the
+        benchmark path and the production path semantically identical — if the
         filter only existed locally, the benchmark would measure a system that
         does not ship.
         """
@@ -80,7 +79,7 @@ class Corpus:
     def tenants(self) -> frozenset[str]:
         return frozenset(c.metadata.get("tenant", "public") for c in self.chunks)
 
-    def visible_to(self, allowed: Sequence[str]) -> "Corpus":
+    def visible_to(self, allowed: Sequence[str]) -> Corpus:
         """Restrict to chunks whose document tenant is in `allowed`.
 
         The access-control primitive. Three properties are load-bearing:
@@ -113,7 +112,7 @@ class Corpus:
         sources = tuple(dict.fromkeys(c.source for c in keep))
         return Corpus(chunks=tuple(keep), sources=sources, root=self.root)
 
-    def by_status(self, *statuses: str) -> "Corpus":
+    def by_status(self, *statuses: str) -> Corpus:
         """Restrict to chunks whose document status is one of `statuses`.
 
         Used to drop superseded revisions from the candidate pool. Filtering the

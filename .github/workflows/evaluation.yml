@@ -1,0 +1,86 @@
+name: evaluation
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  # Manual, because a benchmark sweep is minutes of CPU and the daily job is what
+  # establishes drift over time. `evaluation` on a commit runs only the gate.
+  workflow_dispatch:
+    inputs:
+      full:
+        description: Run the full ablation sweep as well as the gate
+        type: boolean
+        default: false
+
+concurrency:
+  group: evaluation-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  gate:
+    # The gate is on *violations*, not on forbidden sources being retrieved. A
+    # superseded document appearing in the candidate set and being correctly
+    # outranked is the policy working; gating on its presence fails passing runs.
+    # This distinction is the reason the probe suite records leakage_count and
+    # violations as separate numbers.
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: astral-sh/setup-uv@v5
+
+      - run: uv sync --frozen
+
+      - name: Evaluate
+        run: |
+          uv run python scripts/evaluate.py \
+            --corpus evals/datasets/docs \
+            --probes evals/datasets/probes.json \
+            --out runs/baseline.json \
+            --save-manifest runs/manifest.json \
+            --label "ci-${{ github.sha }}"
+
+      - name: Upload the report
+        # Uploaded even on failure. A regression report that explains which
+        # probes degraded is the most useful artefact a failed run produces.
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: evaluation-report
+          path: runs/
+
+  ablation:
+    # Which components actually earn their place. A retrieval stack whose
+    # ablations all score the same is not being measured.
+    if: ${{ github.event_name == 'workflow_dispatch' && inputs.full }}
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: astral-sh/setup-uv@v5
+
+      - run: uv sync --frozen
+
+      - name: Ablation sweep
+        run: |
+          uv run python scripts/ablate.py \
+            --corpus evals/datasets/docs \
+            --probes evals/datasets/probes.json \
+            --out runs/ablation.json
+
+      - name: Summarise
+        run: |
+          uv run python -c "
+          import json
+          r = json.load(open('runs/ablation.json'))
+          for variant in r['variants']:
+              a = variant['aggregate']
+              print(f\"{variant['name']:24} pass {a['pass_rate']:.3f}  recall@5 {a['recall_at_5']:.3f}\")
+          "
+
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: ablation-report
+          path: runs/

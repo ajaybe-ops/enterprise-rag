@@ -42,10 +42,11 @@ import sys
 import threading
 import time
 import uuid
+from collections.abc import Iterator
 from dataclasses import dataclass, field
-from typing import Any, Iterator
+from typing import Any
 
-__all__ = ["span", "log", "drain", "Trace", "install", "configure"]
+__all__ = ["Trace", "configure", "drain", "install", "log", "span"]
 
 # Emitted when true. Off by default: writing a JSON line to stderr on every
 # request in a test run is noise, and noise in a test run is how a real warning

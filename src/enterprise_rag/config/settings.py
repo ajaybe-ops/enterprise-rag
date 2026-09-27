@@ -29,8 +29,8 @@ Design constraints, in priority order:
 from __future__ import annotations
 
 import os
+from collections.abc import Mapping
 from dataclasses import dataclass, field, replace
-from typing import Mapping
 
 __all__ = [
     "ConfigError",
@@ -54,6 +54,12 @@ _SECRET_NAME_PARTS = ("_api_key", "_key", "_token", "_secret", "_password", "cre
 # substring keeps a generic service URL out of the set: an API base URL is
 # routinely safe to log, and excluding it keeps a config dump useful.
 _SECRET_NAME_SUFFIXES = ("_dsn", "_db_url", "_database_url")
+
+# Vendor endpoints that ship as the default. A base URL that differs from these
+# is a deliberate operator choice, and is what marks a self-hosted (usually
+# key-less) endpoint as configured. See `Settings.llm_enabled`.
+_DEFAULT_LLM_BASE_URL = "https://api.openai.com/v1"
+_DEFAULT_EMBEDDINGS_BASE_URL = "https://api.jina.ai/v1"
 
 
 def _is_secret_name(name: str) -> bool:
@@ -101,11 +107,34 @@ def _get_float(env: Mapping[str, str], key: str, default: float) -> float:
         raise ConfigError(f"{key}={raw!r} is not a number") from exc
 
 
+_TRUE_VALUES = frozenset({"1", "true", "yes", "on", "t", "y"})
+_FALSE_VALUES = frozenset({"0", "false", "no", "off", "f", "n"})
+
+
 def _get_bool(env: Mapping[str, str], key: str, default: bool = False) -> bool:
+    """Boolean env value, rejecting anything unrecognised.
+
+    Previously any value outside the true-set became `False`, which made a
+    typo a silent feature disable: `RAG_USE_BM25=ture` turned BM25 off and
+    changed retrieval quality with no warning, while `_get_int` and
+    `_get_float` raised on the same class of mistake. The asymmetry meant the
+    booleans -- the settings an operator is most likely to fat-finger, and the
+    ones with the largest behavioural effect -- were the only ones that failed
+    quietly. A rejected value is caught at startup; a mistyped `False` is
+    discovered by a regression six weeks later.
+    """
     raw = env.get(key)
     if raw is None or not raw.strip():
         return default
-    return raw.strip().lower() in {"1", "true", "yes", "on"}
+    lowered = raw.strip().lower()
+    if lowered in _TRUE_VALUES:
+        return True
+    if lowered in _FALSE_VALUES:
+        return False
+    raise ConfigError(
+        f"{key}={raw!r} is not a boolean; use one of "
+        f"{sorted(_TRUE_VALUES | _FALSE_VALUES)}"
+    )
 
 
 def _get_list(env: Mapping[str, str], key: str, default: tuple[str, ...]) -> tuple[str, ...]:
@@ -345,7 +374,19 @@ class Settings:
     # a system that advertises capabilities it does not have.
     @property
     def llm_enabled(self) -> bool:
-        return not _placeholder(self.llm_api_key)
+        """Whether a hosted or self-hosted chat endpoint should be called.
+
+        A real API key is sufficient on its own. A key is *not* required when
+        the operator has pointed ``LLM_BASE_URL`` at their own server: Ollama,
+        vLLM, llama.cpp and LM Studio all speak the OpenAI chat schema and most
+        run unauthenticated on localhost. Keying availability off the key alone
+        made those deployments silently un-runnable -- the pipeline reported
+        "extractive" and never attempted a call, so the configuration looked
+        accepted while doing nothing.
+        """
+        if not _placeholder(self.llm_api_key):
+            return True
+        return self.llm_base_url.rstrip("/") != _DEFAULT_LLM_BASE_URL
 
     @property
     def embeddings_enabled(self) -> bool:
@@ -364,7 +405,7 @@ class Settings:
         return not _placeholder(self.api_key)
 
     @classmethod
-    def from_env(cls, env: Mapping[str, str] | None = None) -> "Settings":
+    def from_env(cls, env: Mapping[str, str] | None = None) -> Settings:
         """Build settings from `env` (defaults to `os.environ`)."""
         src = os.environ if env is None else env
 
@@ -405,7 +446,7 @@ class Settings:
             max_chunk_chars=_get_int(src, "RAG_MAX_CHUNK_CHARS", 1200),
             chunk_overlap=_get_int(src, "RAG_CHUNK_OVERLAP", 120),
             llm_api_key=_get_str(src, "LLM_API_KEY") or _get_str(src, "OPENAI_API_KEY"),
-            llm_base_url=(_get_str(src, "LLM_BASE_URL", "https://api.openai.com/v1") or "").rstrip("/"),
+            llm_base_url=(_get_str(src, "LLM_BASE_URL", _DEFAULT_LLM_BASE_URL) or "").rstrip("/"),
             llm_model=_get_str(src, "LLM_MODEL", "gpt-4o-mini") or "gpt-4o-mini",
             llm_max_retries=_get_int(src, "LLM_MAX_RETRIES", 2),
             llm_timeout_s=_get_float(src, "LLM_TIMEOUT_S", 60.0),
@@ -476,7 +517,7 @@ class Settings:
         object.__setattr__(self, "_pending_warnings", existing)
         object.__setattr__(self, "warnings", tuple(existing))
 
-    def with_overrides(self, **kwargs: object) -> "Settings":
+    def with_overrides(self, **kwargs: object) -> Settings:
         """Return a copy with fields replaced. Used by tests and the CLI."""
         return replace(self, **kwargs)  # type: ignore[arg-type]
 
@@ -500,7 +541,11 @@ class Settings:
             "generation": llm,
             "embeddings": embeddings,
             "vector_store": store,
-            "rerank": self.retrieval.rerank if self.rerank_enabled or self.retrieval.rerank != "jina" else "jina(unavailable)",
+            "rerank": (
+                self.retrieval.rerank
+                if self.rerank_enabled or self.retrieval.rerank != "jina"
+                else "jina(unavailable)"
+            ),
             "cache": "in-process" if self.cache_enabled else "disabled",
             "auth": "enabled" if self.auth_enabled else "disabled",
         }

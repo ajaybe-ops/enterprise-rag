@@ -63,7 +63,7 @@ DESCRIPTION = (
 
 def create_app() -> FastAPI:
     @asynccontextmanager
-    async def lifespan(application: FastAPI) -> AsyncIterator[None]:
+    async def lifespan(application: FastAPI) -> AsyncIterator[None]:  # noqa: ARG001
         """Build the index once, at startup, and log rather than crash on failure.
 
         Failing to start would turn a missing corpus into a crash loop whose real
@@ -73,7 +73,7 @@ def create_app() -> FastAPI:
         """
         try:
             state.build()
-        except Exception as exc:  # noqa: BLE001 - surfaced via /health
+        except Exception as exc:
             print(f"[enterprise-rag] index not built: {exc}")
         yield
 
@@ -85,7 +85,10 @@ def create_app() -> FastAPI:
     )
 
     @application.exception_handler(ServiceUnavailable)
-    async def service_unavailable(request: Request, exc: ServiceUnavailable) -> JSONResponse:
+    async def service_unavailable(
+        request: Request,  # noqa: ARG001 -- Starlette handler signature
+        exc: ServiceUnavailable,
+    ) -> JSONResponse:
         """The index is not built. 503, because a retry is reasonable."""
         return JSONResponse(
             status_code=503,
@@ -94,7 +97,10 @@ def create_app() -> FastAPI:
         )
 
     @application.exception_handler(Exception)
-    async def unhandled(request: Request, exc: Exception) -> JSONResponse:
+    async def unhandled(
+        request: Request,  # noqa: ARG001 -- Starlette handler signature
+        exc: Exception,
+    ) -> JSONResponse:
         """Error type and message, never a stack trace."""
         return JSONResponse(
             status_code=500,

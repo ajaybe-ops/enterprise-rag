@@ -6,7 +6,7 @@ Two implementations, deliberately different in kind:
     A classical dense baseline: TF-IDF over the term space, then truncated SVD
     to project documents and queries into a shared low-dimensional vector space
     (Latent Semantic Analysis). Fully reproducible from the corpus alone, needs
-    no network, no model download and no API key â€” which is what makes the
+    no network, no model download and no API key — which is what makes the
     benchmark suite runnable in CI. It is a real dense retriever, not a stub,
     but it is a weak one: LSA captures co-occurrence structure, not semantics.
 
@@ -15,18 +15,17 @@ Two implementations, deliberately different in kind:
     passages and queries are embedded differently.
 
 Having both is the point. It lets the benchmark answer "does the neural
-embedding actually beat a classical dense baseline on *this* corpus?" â€” a
+embedding actually beat a classical dense baseline on *this* corpus?" — a
 question that is usually asserted rather than measured, and the answer here is
 not obvious in advance.
 """
 
 from __future__ import annotations
 
-import math
 import time
 from collections import Counter
+from collections.abc import Sequence
 from dataclasses import dataclass
-from typing import Sequence
 
 import numpy as np
 
@@ -35,9 +34,9 @@ from enterprise_rag.text import analyze
 from enterprise_rag.types import Chunk
 
 __all__ = [
-    "LSARetriever",
-    "JinaDenseRetriever",
     "Embedder",
+    "JinaDenseRetriever",
+    "LSARetriever",
     "cosine",
     "embeddings_mode",
 ]
@@ -190,7 +189,7 @@ class JinaDenseRetriever:
                 )
                 response.raise_for_status()
                 return response.json()
-            except Exception as exc:  # noqa: BLE001 - retried below
+            except Exception as exc:
                 last_error = exc
                 text = str(exc).lower()
                 retryable = any(t in text for t in ("429", "rate", "quota", "timeout", "503", "502"))
@@ -210,7 +209,7 @@ class JinaDenseRetriever:
         }
         data = self._post("/embeddings", payload)["data"]
         # The API does not guarantee ordering; sorting by index is mandatory,
-        # not defensive â€” a shuffled response silently pairs every chunk with
+        # not defensive — a shuffled response silently pairs every chunk with
         # the wrong vector and the index looks plausible.
         ordered = sorted(data, key=lambda item: item.get("index", 0))
         return [item["embedding"] for item in ordered]
@@ -256,7 +255,7 @@ class Embedder:
     def dim(self) -> int:
         return self.settings.embeddings_dim if self.mode == "jina" else self.fitted_dim
 
-    def fit(self, chunks: Sequence[Chunk]) -> "Embedder":
+    def fit(self, chunks: Sequence[Chunk]) -> Embedder:
         """Fit the local space to a corpus. No-op for the remote backend."""
         if self.mode == "lsa":
             self.lsa = LSARetriever(chunks=tuple(chunks), n_components=self.settings.lsa_dim)
@@ -336,7 +335,7 @@ def embeddings_mode(settings: Settings) -> str:
     return "jina" if settings.embeddings_enabled else "lsa"
 
 
-def cosine(a: "np.ndarray", b: "np.ndarray") -> float:
+def cosine(a: np.ndarray, b: np.ndarray) -> float:
     denom = float(np.linalg.norm(a) * np.linalg.norm(b))
     return float(np.dot(a, b) / denom) if denom else 0.0
 

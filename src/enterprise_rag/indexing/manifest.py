@@ -40,20 +40,20 @@ import hashlib
 import json
 import pathlib
 import re
+from collections.abc import Iterable, Mapping, Sequence
 from dataclasses import dataclass, field, replace
-from typing import Iterable, Mapping, Sequence
 
 __all__ = [
-    "DocumentRecord",
-    "CorpusManifest",
-    "ManifestDiff",
-    "ChangedDocument",
-    "build_manifest",
-    "parse_front_matter",
-    "normalise_text",
-    "content_hash",
-    "MANIFEST_VERSION",
     "FRONT_MATTER_KEYS",
+    "MANIFEST_VERSION",
+    "ChangedDocument",
+    "CorpusManifest",
+    "DocumentRecord",
+    "ManifestDiff",
+    "build_manifest",
+    "content_hash",
+    "normalise_text",
+    "parse_front_matter",
 ]
 
 MANIFEST_VERSION = 1
@@ -193,7 +193,7 @@ class DocumentRecord:
         }
 
     @classmethod
-    def from_dict(cls, payload: Mapping) -> "DocumentRecord":
+    def from_dict(cls, payload: Mapping) -> DocumentRecord:
         return cls(
             doc_id=payload["doc_id"],
             source=payload["source"],
@@ -343,7 +343,7 @@ class CorpusManifest:
     def all_chunk_ids(self) -> frozenset[str]:
         return frozenset(cid for record in self.records for cid in record.chunk_ids)
 
-    def diff(self, other: "CorpusManifest") -> ManifestDiff:
+    def diff(self, other: CorpusManifest) -> ManifestDiff:
         """Structural diff against `other` (the newer manifest)."""
         before = {r.source: r for r in self.records}
         after = {r.source: r for r in other.records}
@@ -395,7 +395,7 @@ class CorpusManifest:
         return target
 
     @classmethod
-    def load(cls, path: str | pathlib.Path) -> "CorpusManifest":
+    def load(cls, path: str | pathlib.Path) -> CorpusManifest:
         payload = json.loads(pathlib.Path(path).read_text(encoding="utf-8"))
         return cls(
             records=tuple(DocumentRecord.from_dict(r) for r in payload.get("records", ())),
@@ -459,7 +459,7 @@ def build_manifest(
 
         records.append(
             DocumentRecord(
-                doc_id=hashlib.sha256(f"doc:{source}".encode("utf-8")).hexdigest()[:16],
+                doc_id=hashlib.sha256(f"doc:{source}".encode()).hexdigest()[:16],
                 source=source,
                 content_hash=content_hash(text),
                 char_count=len(text),

@@ -41,7 +41,6 @@ docs/adr/0004.
 from __future__ import annotations
 
 import argparse
-import json
 import pathlib
 import random
 import shutil
@@ -49,9 +48,9 @@ import sys
 
 sys.path.insert(0, str(pathlib.Path(__file__).resolve().parents[1]))
 
-from enterprise_rag.indexing.manifest import attach_chunks, build_manifest  # noqa: E402
-from enterprise_rag.evaluation.probe import Probe, ProbeSet, dataset_id_for  # noqa: E402
-from enterprise_rag.indexing.corpus import load_corpus  # noqa: E402
+from enterprise_rag.evaluation.probe import Probe, ProbeSet, dataset_id_for
+from enterprise_rag.indexing.corpus import load_corpus
+from enterprise_rag.indexing.manifest import attach_chunks, build_manifest
 
 # Vocabulary chosen so generated documents read like runbooks rather than like
 # word salad: each domain term is a real operational concept, and each service
@@ -481,7 +480,12 @@ def build_probes(truth: dict[str, dict], count: int) -> list[Probe]:
 
 
 def main() -> int:
-    parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
+    # RawDescriptionHelpFormatter so the module docstring -- which is the
+    # usage documentation -- stays readable instead of being reflowed.
+    parser = argparse.ArgumentParser(
+        description=__doc__,
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+    )
     parser.add_argument("--out", default="evals/datasets", help="output directory")
     parser.add_argument("--seed", type=int, default=20260101, help="RNG seed; fixes output byte for byte")
     parser.add_argument("--services", type=int, default=len(SERVICES), help="number of services to generate")
@@ -516,7 +520,7 @@ def main() -> int:
 
     problems = probe_set.validate(documents.keys())
     if problems:
-        print(f"internal error: generated an incoherent probe set:", file=sys.stderr)
+        print("internal error: generated an incoherent probe set:", file=sys.stderr)
         for problem in problems:
             print(f"  - {problem}", file=sys.stderr)
         return 1

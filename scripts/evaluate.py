@@ -24,19 +24,23 @@ from __future__ import annotations
 
 import argparse
 import dataclasses
-import json
 import pathlib
 import sys
 
 sys.path.insert(0, str(pathlib.Path(__file__).resolve().parents[1]))
 
-from enterprise_rag.config.settings import Settings  # noqa: E402
-from enterprise_rag.indexing.manifest import attach_chunks, build_manifest  # noqa: E402
-from enterprise_rag.evaluation.probe import ProbeSet  # noqa: E402
-from enterprise_rag.evaluation.regression import compare  # noqa: E402
-from enterprise_rag.evaluation.runner import RetrievalExecutor, RunReport, config_fingerprint, run_probe_set  # noqa: E402
-from enterprise_rag.indexing.corpus import load_corpus  # noqa: E402
-from enterprise_rag.pipelines.retrieval import HybridRetriever, build_retrievers  # noqa: E402
+from enterprise_rag.config.settings import Settings
+from enterprise_rag.evaluation.probe import ProbeSet
+from enterprise_rag.evaluation.regression import compare
+from enterprise_rag.evaluation.runner import (
+    RetrievalExecutor,
+    RunReport,
+    config_fingerprint,
+    run_probe_set,
+)
+from enterprise_rag.indexing.corpus import load_corpus
+from enterprise_rag.indexing.manifest import attach_chunks, build_manifest
+from enterprise_rag.pipelines.retrieval import HybridRetriever, build_retrievers
 
 
 def assemble_context(chunks) -> str:
@@ -146,7 +150,12 @@ def build_report(args) -> RunReport:
 
 
 def main() -> int:
-    parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
+    # RawDescriptionHelpFormatter so the module docstring -- which is the
+    # usage documentation -- stays readable instead of being reflowed.
+    parser = argparse.ArgumentParser(
+        description=__doc__,
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+    )
     parser.add_argument("--corpus", required=True, help="corpus root directory")
     parser.add_argument("--probes", required=True, help="probe set JSON")
     parser.add_argument("--out", default="runs/candidate.json", help="where to write the run report")

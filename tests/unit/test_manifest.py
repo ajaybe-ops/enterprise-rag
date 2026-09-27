@@ -13,8 +13,6 @@ from __future__ import annotations
 import sys
 from pathlib import Path
 
-import pytest
-
 sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
 
 from enterprise_rag.indexing.manifest import (
@@ -123,7 +121,6 @@ class TestAttachChunks:
         reported as `unchanged`, and a retrieval regression caused entirely by
         rechunking would be blamed on the code. The count is not identity.
         """
-        from enterprise_rag.indexing.manifest import CorpusManifest
 
         base = self._corpus(tmp_path)
 

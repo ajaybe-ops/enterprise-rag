@@ -31,12 +31,12 @@ from __future__ import annotations
 
 import hashlib
 import json
-import os
 import platform
 import sys
-import time
+from collections.abc import Callable, Mapping, Sequence
 from dataclasses import dataclass, field
-from typing import Callable, Mapping, Protocol, Sequence
+from pathlib import Path
+from typing import Protocol
 
 from enterprise_rag.evaluation.metrics import AggregateReport, aggregate, evaluate_probe
 from enterprise_rag.evaluation.probe import Probe, ProbeOutcome, ProbeSet
@@ -47,8 +47,8 @@ __all__ = [
     "ProbeExecutor",
     "RetrievalExecutor",
     "RunReport",
-    "run_probe_set",
     "config_fingerprint",
+    "run_probe_set",
 ]
 
 
@@ -87,9 +87,13 @@ def config_fingerprint(settings: object) -> str:
         if section is None:
             continue
         if isinstance(section, Mapping):
-            material[name] = {k: v for k, v in sorted(section.items()) if isinstance(v, (int, float, str, bool))}
+            material[name] = {
+                k: v for k, v in sorted(section.items()) if isinstance(v, (int, float, str, bool))
+            }
         else:
-            fields = getattr(section, "__dataclass_fields__", None) or getattr(type(section), "__annotations__", {})
+            fields = getattr(section, "__dataclass_fields__", None) or getattr(
+                type(section), "__annotations__", {}
+            )
             material[name] = {
                 k: getattr(section, k)
                 for k in sorted(fields)
@@ -120,7 +124,7 @@ class RetrievalExecutor:
     def __call__(self, probe: Probe) -> ProbeExecution:
         try:
             result = self.retriever.retrieve(probe.query)
-        except Exception as error:  # noqa: BLE001 - an executor must never crash a suite
+        except Exception as error:
             return ProbeExecution(error=f"{type(error).__name__}: {error}")
 
         chunks = tuple(getattr(result, "chunks", ()) or ())
@@ -138,7 +142,11 @@ class RetrievalExecutor:
         if self.authorise:
             principal = Principal(
                 subject=probe.subject or "anonymous",
-                tenants=frozenset({probe.tenant} | {"public"} if probe.tenant != "public" else frozenset({"public"})),
+                tenants=(
+                    frozenset({"public"})
+                    if probe.tenant == "public"
+                    else frozenset({probe.tenant, "public"})
+                ),
             )
             outcome = authorise(chunks, principal)
             chunks = tuple(outcome.decision.allowed)
@@ -157,9 +165,15 @@ class RetrievalExecutor:
                 chunks = tuple(c for c in chunks if c.metadata.get("tenant", "public") in permitted)
                 ranked = tuple(dict.fromkeys(c.source for c in chunks))
 
-        context = self.assemble_context(chunks) if self.assemble_context else "\n\n".join(c.text for c in chunks)
+        context = (
+            self.assemble_context(chunks)
+            if self.assemble_context
+            else "\n\n".join(c.text for c in chunks)
+        )
         confidence = float(getattr(result, "confidence", 0.0) or 0.0)
-        threshold = float(getattr(getattr(self.settings, "retrieval", None), "confidence_threshold", 0.0) or 0.0)
+        threshold = float(
+            getattr(getattr(self.settings, "retrieval", None), "confidence_threshold", 0.0) or 0.0
+        )
         if refusal_reason:
             # A policy refusal outranks a confidence signal. Reporting high
             # confidence here would mean the system knows it could not answer and
@@ -224,18 +238,20 @@ class RunReport:
         return payload
 
     def save(self, path) -> str:
-        target = str(path)
-        directory = os.path.dirname(target)
-        if directory:
-            os.makedirs(directory, exist_ok=True)
-        with open(target, "w", encoding="utf-8") as handle:
+        target = Path(path)
+        # `parents=True` covers the common `--out runs/nested/report.json` case.
+        # `mkdir(exist_ok=True)` on a bare filename resolves to `.`, which already
+        # exists, so the old `if directory:` guard was only ever avoiding an
+        # exception the flag already suppresses.
+        target.parent.mkdir(parents=True, exist_ok=True)
+        with target.open("w", encoding="utf-8") as handle:
             json.dump(self.to_dict(), handle, indent=2, sort_keys=True)
             handle.write("\n")
-        return target
+        return str(target)
 
     @classmethod
-    def load(cls, path) -> "RunReport":
-        with open(path, "r", encoding="utf-8") as handle:
+    def load(cls, path) -> RunReport:
+        with Path(path).open(encoding="utf-8") as handle:
             payload = json.load(handle)
         aggregate_payload = payload["aggregate"]
         outcomes = tuple(
@@ -299,7 +315,8 @@ class RunReport:
             f"# Evaluation: {self.label or self.run_id}",
             "",
             f"- run: `{self.run_id}`",
-            f"- dataset: `{self.dataset_id}`  corpus: `{self.manifest_id}`  config: `{self.config_fingerprint}`",
+            f"- dataset: `{self.dataset_id}`  corpus: `{self.manifest_id}`"
+            f"  config: `{self.config_fingerprint}`",
             f"- probes: {agg.probe_count}   k: {self.k}",
             f"- **pass rate: {agg.pass_rate:.3f}** ({len(self.failures)} failing)",
             "",
@@ -344,7 +361,11 @@ class RunReport:
                     reasons.append(f"error: {outcome.error}")
                 if not reasons:
                     reasons.append("contract unmet")
-                rank = f"rank {outcome.first_required_rank}" if outcome.first_required_rank else "not retrieved"
+                rank = (
+                    f"rank {outcome.first_required_rank}"
+                    if outcome.first_required_rank
+                    else "not retrieved"
+                )
                 lines.append(
                     f"- **{outcome.probe_id}** ({outcome.kind}, {rank}) - {'; '.join(reasons)}"
                 )
@@ -410,7 +431,7 @@ def run_probe_set(
         environment={
             "python": sys.version.split()[0],
             "platform": platform.platform(terse=True),
-            "executable": os.path.basename(sys.executable),
+            "executable": Path(sys.executable).name,
         },
         notes=notes,
     )

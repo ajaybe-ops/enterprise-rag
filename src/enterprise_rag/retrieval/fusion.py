@@ -2,22 +2,22 @@
 
 Two strategies, and having both is instructive.
 
-**RRF (Reciprocal Rank Fusion)** â€” Cormack et al. 2009. Each document scores
-`Î£ 1 / (k + rank_i(d))` across lists, k defaulting to 60.
+**RRF (Reciprocal Rank Fusion)** — Cormack et al. 2009. Each document scores
+`Σ 1 / (k + rank_i(d))` across lists, k defaulting to 60.
 
 The appeal is that it consumes *only* ranks, never raw scores. That sidesteps a
 real problem: BM25 scores are unbounded and corpus-dependent, cosine
 similarities are bounded but a different kind of quantity, and the two cannot be
 meaningfully added without calibration. RRF needs no normalisation and no score
-scale agreement. The `k` constant flattens the contribution of top ranks â€” with
+scale agreement. The `k` constant flattens the contribution of top ranks — with
 k=60 the difference between rank 1 and rank 2 is about 3%, so a single list
 cannot dominate the fusion by stacking its own best hits.
 
-**Weighted score fusion** â€” min-max normalise each list per query, then take a
+**Weighted score fusion** — min-max normalise each list per query, then take a
 weighted sum. This *does* use score magnitudes, so a document that is
 overwhelmingly the best match for one retriever can outrank one that merely
 appeared high in both. More expressive, and it depends on the normalisation
-being right and the weights being tuned â€” which is what the benchmark sweep is
+being right and the weights being tuned — which is what the benchmark sweep is
 for.
 
 Default is RRF, for the score-scale reason above rather than because it is the
@@ -30,7 +30,7 @@ from collections.abc import Sequence
 
 from enterprise_rag.types import Chunk
 
-__all__ = ["rrf_fuse", "weighted_fuse", "fuse"]
+__all__ = ["fuse", "rrf_fuse", "weighted_fuse"]
 
 # Per-retriever list order is fixed so `dense_weight`/`sparse_weight` have an
 # unambiguous referent. Sparse-first, because with a single list enabled the
@@ -65,7 +65,7 @@ def rrf_fuse(
     """Fuse by reciprocal rank. Each input list is in descending quality order."""
     totals: dict[str, float] = {}
     best: dict[str, Chunk] = {}
-    # (which list surfaced it, position within that list) â€” the tie-break, so
+    # (which list surfaced it, position within that list) — the tie-break, so
     # fusion is deterministic run to run.
     provenance: dict[str, tuple[int, int]] = {}
 
@@ -119,7 +119,7 @@ def weighted_fuse(
         weight = weights[list_index] if weights and list_index < len(weights) else 1.0
         attr = attrs[list_index] if attrs else DENSE_ATTR
         filled = [float(getattr(c, attr, 0.0) or 0.0) for c in ranked]
-        for chunk, value in zip(ranked, _normalise(filled)):
+        for chunk, value in zip(ranked, _normalise(filled), strict=False):
             totals[chunk.chunk_id] = totals.get(chunk.chunk_id, 0.0) + weight * value
             if chunk.chunk_id not in best:
                 best[chunk.chunk_id] = chunk
@@ -145,7 +145,7 @@ def fuse(
     """Dispatch fusion over [dense, sparse] lists.
 
     List order is fixed: index 0 is dense, index 1 is sparse. That makes the
-    weights unambiguous and keeps the benchmark's comparisons honest â€” a sweep
+    weights unambiguous and keeps the benchmark's comparisons honest — a sweep
     that reorders lists between runs is not measuring the weights.
     """
     lists = [list(r) for r in ranked_lists if r]

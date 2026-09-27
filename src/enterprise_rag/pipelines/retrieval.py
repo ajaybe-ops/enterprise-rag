@@ -15,35 +15,34 @@ with no branching in the orchestration code itself.
 from __future__ import annotations
 
 import time
+from collections.abc import Sequence
 from dataclasses import dataclass
-from typing import Protocol, Sequence, runtime_checkable
+from typing import Protocol, runtime_checkable
 
 from enterprise_rag.config.settings import Settings
+from enterprise_rag.indexing.corpus import Corpus
+from enterprise_rag.reranking.rerank import rerank
 from enterprise_rag.retrieval import fusion
-from enterprise_rag.retrieval.sparse import build_index
+from enterprise_rag.retrieval.analysis import analyse_query
 from enterprise_rag.retrieval.confidence import (
-    ConfidenceSignals,
     estimate_confidence,
-    should_abstain,
     should_escalate,
 )
-from enterprise_rag.indexing.corpus import Corpus
 from enterprise_rag.retrieval.dense import Embedder
-from enterprise_rag.retrieval.analysis import analyse_query
-from enterprise_rag.reranking.rerank import rerank
+from enterprise_rag.retrieval.sparse import BM25Index, build_index
 from enterprise_rag.retrieval.status import StatusPolicy
 from enterprise_rag.types import Chunk, QueryAnalysis, RetrievalResult, renumber
 
 __all__ = [
-    "Corpus",
-    "Retriever",
-    "HybridRetriever",
-    "StatusPolicy",
     "ALLOWED_SOURCE_TYPES",
+    "Corpus",
+    "HybridRetriever",
+    "Retriever",
+    "StatusPolicy",
     "build_retrievers",
 ]
 
-__all__ = ["Corpus", "Retriever", "HybridRetriever", "ALLOWED_SOURCE_TYPES", "build_retrievers"]
+__all__ = ["ALLOWED_SOURCE_TYPES", "Corpus", "HybridRetriever", "Retriever", "build_retrievers"]
 
 # The scope gate. Only these corpora are served to users; `noisy` is indexed so
 # the filter has something real to exclude and so cross-corpus confusion is
@@ -66,10 +65,11 @@ class _BM25Retriever:
 
     Exhaustive BM25 scoring rather than an index lookup: honest for a corpus of
     this size, and it avoids pretending to be something it is not. Qdrant (or a
-    real inverted index) is the answer at scale â€” see docs/adr/0004.
+    real inverted index) is the answer at scale — see docs/adr/0004.
     """
 
     index: BM25Index
+
 
     @property
     def kind(self) -> str:
@@ -98,7 +98,7 @@ class _QdrantRetriever:
 
     The filter goes in the query, not after it. Post-filtering would return fewer
     than `top_k` in-scope chunks whenever the top hits happen to be out of scope
-    â€” silently starving the reranker on exactly the queries where the corpus is
+    — silently starving the reranker on exactly the queries where the corpus is
     mixed.
     """
 
@@ -141,7 +141,7 @@ def build_retrievers(
 
     Exactly one of `corpus` (in-memory) or a configured Qdrant is required. With
     neither, an empty dict is returned and the pipeline reports an empty
-    result rather than raising â€” a missing index is a degradation, not a crash.
+    result rather than raising — a missing index is a degradation, not a crash.
     """
     cfg = settings.retrieval
     retrievers: dict[str, Retriever] = {}
@@ -192,7 +192,7 @@ class HybridRetriever:
     settings: Settings
     retrievers: dict[str, Retriever]
     consider_multi_query: bool = True
-    status_policy: "StatusPolicy | None" = None
+    status_policy: StatusPolicy | None = None
 
     def __post_init__(self) -> None:
         # Derived from settings when not passed explicitly, so existing call
@@ -209,7 +209,7 @@ class HybridRetriever:
 
     def retrieve(
         self,
-        analysis: "QueryAnalysis | str",
+        analysis: QueryAnalysis | str,
         *,
         candidate_k: int | None = None,
         final_k: int | None = None,
@@ -374,7 +374,7 @@ class HybridRetriever:
             if "dense" in self.retrievers:
                 try:
                     dense_lists.append(self.retrievers["dense"].search(query, top_k))
-                except Exception:  # noqa: BLE001 - one failed retriever must not
+                except Exception:
                     # take down a hybrid query; the sparse side still works.
                     dense_lists.append([])
         return sparse_lists, dense_lists
