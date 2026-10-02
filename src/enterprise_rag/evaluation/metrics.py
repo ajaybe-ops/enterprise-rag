@@ -210,11 +210,31 @@ def evaluate_probe(
 ) -> ProbeOutcome:
     """Score one probe against one retrieval result.
 
-    `passed` is the conjunction of every applicable obligation. For a negative
-    probe that means: no forbidden source surfaced, *and* the system abstained.
-    Requiring both is deliberate -- retrieving a document you should not have,
-    then correctly declining to quote it, is still a retrieval failure, because
-    the sensitive text was in the model's context either way.
+    `passed` is the conjunction of every applicable obligation.
+
+    For a negative probe (`should_abstain`) that means: no forbidden source
+    surfaced, *and* the system abstained. Requiring both is deliberate --
+    retrieving a document you should not have, then correctly declining to quote
+    it, is still a retrieval failure, because the sensitive text was in the
+    model's context either way.
+
+    For an answerable probe it means: the required sources were retrieved, the
+    required facts are in the context, precedence holds, nothing leaked, *and*
+    the system actually answered.
+
+    That last clause was missing, and it is the more consequential half. Without
+    it `passed` was computed purely from the retrieval result and the context
+    text, so a probe whose retrieved evidence was perfect still passed when the
+    pipeline declined to answer it. That flatters the system in the one
+    direction that matters: it converts "answered wrongly" or "refused a
+    question it should have been able to answer" into a pass, because neither
+    shows up in the retrieval metrics. Nine multi-hop probes were abstaining at
+    confidence 0.2558 with the correct documents already retrieved, and the
+    suite reported them as failures for the wrong reason -- `missing_sources`
+    was blamed when the real defect was the pipeline declining to answer.
+
+    Abstention on an answerable probe is a failure of the *system*, not of
+    retrieval, and it has to be scored as one.
     """
     rank = first_required_rank(ranked_sources, probe.must_retrieve)
     missing_sources = tuple(s for s in probe.must_retrieve if s not in set(ranked_sources))
@@ -253,7 +273,10 @@ def evaluate_probe(
     if probe.should_abstain:
         passed = clean and abstained
     else:
-        passed = recall_hit and facts_hit and clean and precedence_ok
+        # An answerable probe also requires an answer. See the docstring: without
+        # `not abstained` here, a pipeline that retrieved perfectly and then
+        # refused to answer was scored as a pass.
+        passed = recall_hit and facts_hit and clean and precedence_ok and not abstained
 
     return ProbeOutcome(
         probe_id=probe.probe_id,

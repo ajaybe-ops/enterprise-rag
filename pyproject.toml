@@ -56,6 +56,26 @@ qdrant = ["qdrant-client>=1.9"]
 # are also deterministic only for a fixed model version -- record the version in
 # the manifest if you enable them.
 local-embeddings = ["sentence-transformers>=2.7", "torch>=2.2"]
+# Interactive structure-viewing notebooks under `notebooks/`. Optional, and not on
+# the default path, because nglview is a browser-WebGL frontend: it contributes no
+# capability to the retrieval service and would otherwise drag ipywidgets in as a
+# runtime dependency of a library that has no UI.
+#
+# Pinned to 4.x. The 3.x -> 4.x break is not cosmetic -- `view.layout` stopped
+# accepting a string, Python callables are no longer accepted as custom colormakers,
+# and `hide`/`show_only` changed to component indices. A notebook written against
+# one does not run against the other, so the floor is the major version.
+notebooks = [
+  "nglview>=4.0,<5",
+  "biopython>=1.88",
+  "matplotlib>=3.8",
+  "ipywidgets>=8.1",
+  # `nbclient`/`nbformat` are needed only to execute the notebooks in CI or
+  # headlessly, which is how they are kept honest. `jupyterlab` is the human path.
+  "nbclient>=0.10",
+  "nbformat>=5.10",
+  "jupyterlab>=4.2",
+]
 dev = [
   "pytest>=8.0",
   "pytest-cov>=5.0",

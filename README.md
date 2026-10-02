@@ -192,7 +192,37 @@ scripts/
   evaluate.py        scoring, regression comparison, CI exit codes
   ablate.py          paired one-parameter ablations
 tests/               68 tests
+notebooks/           standalone notebooks, unrelated to the service
 ```
+
+## Notebooks
+
+`notebooks/` holds self-contained notebooks that are not part of the retrieval
+service and are not imported by it. They are excluded from the default install
+because they add a browser-WebGL frontend to a library that has no UI.
+
+```bash
+uv sync --extra notebooks
+uv run jupyter lab notebooks/protein_visualization.ipynb
+```
+
+`protein_visualization.ipynb` is a tour of NGL Viewer and Biopython using
+haemoglobin: representations, the NGL selection language, colour schemes,
+computing the heme pocket in Biopython and handing the result to NGL as a
+selection, the oxy/deoxy iron displacement, custom colormakers, and AlphaFold
+pLDDT and PAE.
+
+Its committed outputs are the evidence that the claims in the prose are real --
+they were produced by executing every cell. A few numbers worth checking against
+the structure files yourself: `1HHO` has 224 helix residues across 16 author
+HELIX records and no sheets; the computed heme pocket is 21 residues in chain A;
+and the iron sits 0.03-0.17 Å off the porphyrin plane when oxygenated versus
+0.47-0.60 Å in the four deoxy subunits.
+
+The notebooks need network access on first run to fetch structures from RCSB and
+AlphaFold DB, then cache them under `notebooks/.structure_cache/`. The 3D
+rendering itself happens in the browser, so a headless execution proves the code
+runs but not that the picture is right.
 
 ## Honest limitations
 

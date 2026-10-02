@@ -45,8 +45,6 @@ from __future__ import annotations
 import subprocess
 from pathlib import Path
 
-import pytest
-
 ROOT = Path(__file__).resolve().parents[2]
 
 # Suffixes that must stay UTF-8. Binary and asset files are excluded by
@@ -71,19 +69,20 @@ def tracked_text_files() -> list[Path]:
 
     Reading the git index rather than walking the filesystem means a developer's
     uncommitted scratch file cannot fail the suite, and a file that was added to
-    git is guaranteed to be covered. If git is unavailable the caller skips
-    rather than silently testing nothing.
+    git is guaranteed to be covered.
+
+    If git is unavailable this walks the tree instead of skipping. Skipping was
+    the earlier behaviour and it was worse than it looks: a missing `git.exe`
+    made this whole module pass while checking zero files, which is a green
+    result that means nothing. On Windows in particular `git` is frequently
+    absent from `PATH` -- it is not part of the base image -- so the guard
+    vanished silently on a real machine. Walking the tree over-covers rather
+    than under-covers, and an untracked scratch file failing the encoding check
+    is a true positive about a file that would be committed anyway.
     """
-    result = subprocess.run(
-        ["git", "ls-files", "-z", "--", "*.py", "*.md", "*.yml", "*.yaml", "*.toml", "*.json"],
-        cwd=ROOT,
-        capture_output=True,
-        text=True,
-        check=False,
-    )
-    if result.returncode != 0:
-        pytest.skip(f"git ls-files failed: {result.stderr.strip()}")
-    names = [n for n in result.stdout.split("\0") if n]
+    names = _git_listed_files()
+    if names is None:
+        return sorted(_walked_text_files())
     paths = [ROOT / name for name in names]
     # `git ls-files` reports the index, which still lists paths deleted in the
     # working tree until the deletion is staged. Reading those raises, so keep
@@ -96,6 +95,47 @@ def tracked_text_files() -> list[Path]:
         and not SKIP_DIRS & set(p.parts)
         and p.relative_to(ROOT).as_posix() != SELF
     ]
+
+
+def _git_listed_files() -> list[str] | None:
+    """Index-relative paths from `git ls-files -z`, or None if git cannot answer."""
+    try:
+        result = subprocess.run(
+            ["git", "ls-files", "-z", "--", "*.py", "*.md", "*.yml", "*.yaml", "*.toml", "*.json"],
+            cwd=ROOT,
+            capture_output=True,
+            text=True,
+            check=False,
+        )
+    except FileNotFoundError:
+        # `check=False` covers git being present and failing, but not git being
+        # absent: on Windows a missing executable raises from CreateProcess
+        # rather than yielding a non-zero return code.
+        return None
+    if result.returncode != 0:
+        return None
+    return [n for n in result.stdout.split("\0") if n]
+
+
+def _walked_text_files() -> list[Path]:
+    """Filesystem fallback, used only when the git index is unreadable.
+
+    Applies the same `TEXT_SUFFIXES`, `SKIP_DIRS` and self-exclusion rules as the
+    git path so both routes return the same shape. `notebooks/` is not skipped:
+    it holds authored source, and a committed notebook corrupted in transit is
+    exactly the damage this module exists to catch.
+    """
+    found: list[Path] = []
+    for pattern in sorted(TEXT_SUFFIXES):
+        for path in ROOT.rglob(f"*{pattern}"):
+            if not path.is_file():
+                continue
+            if SKIP_DIRS & set(path.relative_to(ROOT).parts):
+                continue
+            if path.relative_to(ROOT).as_posix() == SELF:
+                continue
+            found.append(path)
+    return found
 
 
 def _non_ascii_runs(text: str) -> list[tuple[int, str]]:

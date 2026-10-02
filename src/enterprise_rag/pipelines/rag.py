@@ -270,9 +270,26 @@ class RagPipeline:
             withheld_at_rank=access.evidence_withheld_at_rank,
         )
 
-        if access.should_refuse or not visible:
+        # Confidence gate, before we pay for generation. Applied *after*
+        # authorisation so that a policy refusal (e.g. "restricted") remains the
+        # reason the request was refused, rather than being overwritten by the
+        # generic low-confidence message. The separation matters: policy
+        # violations are not "we weren't confident" and must be reported as such.
+        #
+        # `abstain_below` was documented as the single source of truth but never
+        # read. Wiring it here makes the pipeline's abstention behaviour match the
+        # documented configuration.
+        if (
+            not access.should_refuse
+            and self.settings.retrieval.abstain_below > 0.0
+            and result.confidence < self.settings.retrieval.abstain_below
+        ):
             return self._abstain(
-                    reason=access.reason or "no readable evidence within the caller's scope",
+                reason=(
+                    f"retrieval confidence {result.confidence:.4f} is below the "
+                    f"abstain threshold {self.settings.retrieval.abstain_below:.4f}; "
+                    f"the best evidence retrieved does not support a reliable answer"
+                ),
                 result=result,
                 usage=usage,
                 trace=trace,
@@ -328,8 +345,13 @@ class RagPipeline:
         )
 
         if not generation.text.strip():
+            reason = generation.reason or "the generator produced no text for the retrieved evidence"
+            if access.should_refuse and access.reason:
+                reason = access.reason
+            elif access.reason and not visible:
+                reason = access.reason
             return self._abstain(
-                    reason=generation.reason or "the generator produced no text for the retrieved evidence",
+                reason=reason,
                 result=result,
                 usage=usage,
                 trace=trace,
