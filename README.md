@@ -91,7 +91,13 @@ score is not reproducible enough to be a regression gate.
 
 ---
 
-## Current results
+## Results
+
+> **Last verified 2026-11-04:** 149 tests; 87 documents / 90 probes; recall@5
+> **0.950**; nDCG@5 **0.920**; MRR **0.811**; fact coverage **1.000**; 0
+> authorization/version-preference violations; p95 **56 ms**. The table below is
+> one recorded reference run, not a live benchmark; re-run the command above
+> before comparing numbers.
 
 87 documents, 90 probes, all reproducible offline. These are **relative** numbers
 on a synthetic corpus — they are not a claim about production quality.
