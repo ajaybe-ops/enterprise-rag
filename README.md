@@ -46,14 +46,14 @@ python scripts/generate_corpus.py
 
 # 2. Score the retrieval pipeline against evidence contracts
 python scripts/evaluate.py \
-    --corpus evaluation/generated/docs \
-    --probes evaluation/generated/probes.json \
+    --corpus evals/datasets/docs \
+    --probes evals/datasets/probes.json \
     --out runs/baseline.json \
     --save-manifest runs/manifest.json
 
 # 3. Serve it
 uvicorn app.main:app --reload
-pytest          # 68 tests
+pytest          # 149 tests
 ```
 
 ---
@@ -191,7 +191,7 @@ scripts/
   generate_corpus.py seeded corpus + probe generator
   evaluate.py        scoring, regression comparison, CI exit codes
   ablate.py          paired one-parameter ablations
-tests/               68 tests
+tests/               149 tests
 notebooks/           standalone notebooks, unrelated to the service
 ```
 
